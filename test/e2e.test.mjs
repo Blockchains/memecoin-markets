@@ -7,7 +7,7 @@ import { serve } from '../scripts/serve.mjs';
 let srv, browser, base;
 before(async () => {
   if (process.env.E2E_URL) base = process.env.E2E_URL.replace(/\/?$/, '/');
-  else { srv = await serve('_site'); base = `http://127.0.0.1:${srv.address().port}/`; }
+  else { srv = await serve('_site', 0, '/memecoin-markets/'); base = `http://127.0.0.1:${srv.address().port}/memecoin-markets/`; } // same sub-path as Pages
   browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || undefined, args: ['--no-sandbox'] });
 });
 after(async () => { await browser?.close(); srv?.close(); });

@@ -3,6 +3,8 @@
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const ROOT = document.querySelector('meta[name="mm-root"]')?.content || './';
+// import() resolves against this module's URL, not the page — always use an absolute root for it.
+const ROOT_ABS = new URL(ROOT, location.href).href;
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const SUB = '₀₁₂₃₄₅₆₇₈₉';
 const price = (n) => { if (n == null || !isFinite(n)) return '—'; if (n >= 1) return '$' + n.toLocaleString('en-US', { maximumFractionDigits: n >= 1000 ? 0 : 4 }); if (n >= 0.0001) return '$' + Number(n).toPrecision(4).replace(/0+$/, ''); const [m, e] = n.toExponential(3).split('e-'); return '$0.0' + String(+e - 1).split('').map((d) => SUB[d]).join('') + m.replace('.', '').replace(/0+$/, ''); };
@@ -119,7 +121,7 @@ if ($('#search-out')) {
     const res = searchIndex(await loadIndex(), q, 50);
     out.innerHTML = res.length ? `<p>${res.length} tracked token(s)</p><ul class="guides">${res.map((t) => `<li><a href="${ROOT}${esc(t.path)}">${img(t)} <b>${esc(t.symbol)}</b> ${esc(t.name)}</a> <span class="muted small">${esc(t.chain || '')} · ${price(t.priceUsd)} · mcap ${usd(t.mcap)}</span></li>`).join('')}</ul>` : '<p class="muted">Not in the tracked list — searching DexScreener live…</p>';
     try { // full-text over guides/categories/chains (Pagefind, MIT, built at deploy time)
-      const pf = await import(ROOT + 'pagefind/pagefind.js'); await pf.options({ baseUrl: new URL(ROOT, location.href).pathname });
+      const pf = await import(ROOT_ABS + 'pagefind/pagefind.js'); await pf.options({ baseUrl: new URL(ROOT, location.href).pathname });
       const r = await pf.search(q); const hits = await Promise.all(r.results.slice(0, 6).map((x) => x.data()));
       if (hits.length) out.insertAdjacentHTML('beforeend', `<h2>Guides &amp; pages</h2><ul class="guides">${hits.map((h) => `<li><a href="${esc(h.url)}"><b>${esc(h.meta?.title || h.url)}</b></a><br><span class="muted small">${h.excerpt}</span></li>`).join('')}</ul>`);
     } catch { /* no index offline */ }
@@ -202,7 +204,7 @@ async function tokenPage(a) {
   const doScan = async () => {
     const out = $('#live-scan-out'); btn.setAttribute('aria-busy', 'true'); out.innerHTML = '<p class="muted">Scanning…</p>';
     try {
-      const { scanToken } = await import(ROOT + 'lib/index.js');
+      const { scanToken } = await import(ROOT_ABS + 'lib/index.js');
       const s = await scanToken({ address: btn.dataset.addr, chain: btn.dataset.chain });
       out.innerHTML = `<p><span class="v v-${esc(s.verdict)}" data-live-verdict="${esc(s.verdict)}">${esc(s.verdict)}</span> <span class="muted small">live · ${s.ms} ms</span></p><div class="tw"><table class="checks"><tbody>${s.checks.map((c) => `<tr data-live-check="${esc(c.id)}"><td><span class="s s-${esc(c.status)}">${esc(c.status.toUpperCase())}</span></td><td>${esc(c.label)}</td><td class="mono small">${esc(c.value ?? '—')}</td><td class="muted small">${esc(c.source)}</td></tr>`).join('')}</tbody></table></div>${Object.keys(s.errors || {}).length ? `<p class="small err">Unavailable: ${esc(Object.keys(s.errors).join(', '))}</p>` : ''}`;
     } catch (e) { out.innerHTML = `<p class="err">${esc(e.message)}</p>`; } finally { btn.removeAttribute('aria-busy'); }
