@@ -76,5 +76,5 @@ test('rankings: suspicious caps unranked, gainers filtered, token page SEO', () 
   assert.match(html, /<meta property="og:title"/);
   assert.match(html, /href="\.\.\/\.\.\/\.\.\/guides\/uk-memecoin-tax\/"/);
   const ld = JSON.parse(html.match(/<script type="application\/ld\+json">(.*?)<\/script>/s)[1]);
-  assert.equal(ld['@graph'].length, 3);
+  assert.equal(ld['@graph'].length, 4); assert.equal(ld['@graph'][3]['@type'], 'FAQPage');
 });
