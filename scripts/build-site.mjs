@@ -2,7 +2,7 @@
 // Run by GitHub Actions on push and on a schedule. Snapshots are real upstream data at build time.
 import { cpSync, mkdirSync, rmSync, writeFileSync, readFileSync } from 'node:fs';
 import { radar, scanToken, POLICY, LAUNCH_ITEMS } from '../src/index.js';
-import { latestBoosts } from '../src/sources/dexscreener.js';
+import { latestBoosts, topBoosts } from '../src/sources/dexscreener.js';
 
 const OUT = process.env.OUT || '_site';
 const BASE = 'https://blockchains.github.io/memecoin-markets';
@@ -38,13 +38,14 @@ for (const chain of ['solana', 'base']) {
 // liquid radar rows. This is the feed memecoin.grok.me can use to resolve its UNRESOLVED rows.
 const scans = [];
 if (!OFFLINE) {
-  let boosts = [];
+  let boosts = []; let top = [];
   try { boosts = (await latestBoosts()).filter((b) => b.chain === 'solana').map((b) => b.address); } catch (e) { errors.boosts = String(e.message); }
+  try { top = (await topBoosts()).filter((b) => b.chain === 'solana').map((b) => b.address); } catch (e) { errors.top_boosts = String(e.message); }
   const fresh = (radars.solana.rows || []).filter((r) => (r.liquidityUsd ?? 0) >= POLICY.deskLiquidityUsd).map((r) => r.address);
-  const targets = [...new Set([...boosts.slice(0, 12), ...fresh.slice(0, 8)])];
+  const targets = [...new Set([...boosts.slice(0, 30), ...top.slice(0, 15), ...fresh.slice(0, 8)])].slice(0, Number(process.env.MAX_SCANS || 50));
   for (const address of targets) {
     try { scans.push(await scanToken({ address, chain: 'solana' })); } catch (e) { errors[`scan:${address}`] = String(e.message); }
-    await sleep(400);
+    await sleep(1200);
   }
 }
 const slim = (s) => ({ chain: s.chain, address: s.address, verdict: s.verdict, policy: s.policy, token: s.token, market: s.market && { dex: s.market.dex, priceUsd: s.market.priceUsd, liquidityUsd: s.market.liquidityUsd, fdvUsd: s.market.fdvUsd, createdAt: s.market.createdAt, url: s.market.url }, checks: s.checks.map(({ id, status, value, source, hard }) => ({ id, status, value, source, hard: !!hard })), errors: s.errors, scannedAt: s.scannedAt });
@@ -53,7 +54,7 @@ write('scans-solana.json', { count: scans.length, by_address: Object.fromEntries
 const endpoints = [
   ['v1/radar-solana.json', 'Newest Solana pools (GeckoTerminal) + DexScreener profiles/boosts, liquidity, age, 5m txns, RugCheck for liquid rows, quick flags'],
   ['v1/radar-base.json', 'Same radar for Base'],
-  ['v1/scans-solana.json', 'Full safety scans (mint/freeze, Token-2022, holders, LP, RugCheck, Jupiter sell route) for the latest DexScreener Solana boosts and the freshest liquid pools, keyed by mint'],
+  ['v1/scans-solana.json', 'Full safety scans (mint/freeze, Token-2022, holders, dev history, LP, RugCheck, Jupiter sell route) for the latest + top DexScreener Solana boosts and the freshest liquid pools, keyed by mint'],
   ['v1/policy.json', `Desk policy ${POLICY.id} thresholds and the launch checklist`],
   ['lib/index.js', 'The SDK as a browser ES module: import { scanToken, radar, ukCgt } from this URL'],
   ['llms.txt', 'Agent-readable summary'],

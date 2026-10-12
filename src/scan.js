@@ -115,7 +115,9 @@ async function scanSolana(mint, input) {
   }
 
   if (rcv) {
-    const danger = rcv.risks.filter((x) => x.level === 'danger');
+    // Liquidity is measured by our own hard check against the desk bar, so RugCheck's own
+    // liquidity dangers are reported but not double-counted as a fail.
+    const danger = rcv.risks.filter((x) => x.level === 'danger' && !/liquidity|LP providers/i.test(x.name));
     checks.push(check('rugcheck', 'RugCheck risks', danger.length ? 'fail' : rcv.risks.length ? 'warn' : 'pass', rcv.risks.map((x) => `${x.level}: ${x.name}`).join('; ') || 'none', 'rugcheck'));
     if (rcv.lpLockedPct != null && top?.dex !== 'pumpfun') checks.push(check('lp_locked', 'LP locked/burned', rcv.lpLockedPct < POLICY.warnLpLockedPct ? 'warn' : 'pass', Math.round(rcv.lpLockedPct * 10) / 10, 'rugcheck'));
   } else checks.push(check('rugcheck', 'RugCheck risks', 'unknown', null, 'rugcheck'));

@@ -44,7 +44,7 @@ export async function tokenInfo(mint, opts) {
  */
 export async function sellProbe(mint, amountRaw, opts) {
   try {
-    const q = await quote(mint, SOL_MINT, amountRaw, 300, opts);
+    const q = await quote(mint, SOL_MINT, amountRaw, 300, { retries: 3, ...opts });
     return { routable: BigInt(q.outAmount || '0') > 0n, priceImpactPct: q.priceImpactPct, routes: q.routes };
   } catch (e) {
     const m = String(e.message || e);

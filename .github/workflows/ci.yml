@@ -39,5 +39,5 @@ jobs:
         with: { node-version: 22, cache: npm }
       - run: npm ci
       - run: npx -y playwright@1.64.0 install --with-deps chromium
-      - run: node scripts/build-site.mjs
+      - run: MAX_SCANS=5 node scripts/build-site.mjs
       - run: npm run test:e2e || (sleep 30; npm run test:e2e)

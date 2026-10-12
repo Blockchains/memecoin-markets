@@ -46,6 +46,12 @@ export async function latestBoosts(opts) {
   return (data || []).map((b) => ({ chain: b.chainId, address: b.tokenAddress, amount: b.amount, totalAmount: b.totalAmount, url: b.url, description: b.description || null }));
 }
 
+/** Tokens with the most active boosts. */
+export async function topBoosts(opts) {
+  const data = await fetchJson('dexscreener', `${BASE}/token-boosts/top/v1`, opts);
+  return (data || []).map((b) => ({ chain: b.chainId, address: b.tokenAddress, amount: b.amount, totalAmount: b.totalAmount, url: b.url, description: b.description || null }));
+}
+
 /** Latest token profiles (new listings with socials). */
 export async function latestProfiles(opts) {
   const data = await fetchJson('dexscreener', `${BASE}/token-profiles/latest/v1`, opts);
