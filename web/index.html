@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Memecoin Markets Toolkit · token safety scanner, new-pair radar, UK CGT PnL</title>
+<meta name="description" content="Free, client-side memecoin toolkit: Solana and EVM token safety scanner (mint/freeze authority, Token-2022, honeypot, tax, LP, holders), new-pair radar, UK CGT and FIFO PnL with rotki export, launch checklist, portfolio. Real public data, no keys, not advice.">
+<link rel="canonical" href="https://blockchains.github.io/memecoin-markets/">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#05070d">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%2322d3ee'/%3E%3Ctext x='16' y='22' font-family='monospace' font-size='18' text-anchor='middle' fill='%2305070d'%3EM%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="#scan"><span class="logo">M</span><span>memecoin <b>//</b> TOOLKIT</span></a>
+  <nav>
+    <a href="#scan" data-tab="scan">Scanner</a>
+    <a href="#radar" data-tab="radar">Radar</a>
+    <a href="#pnl" data-tab="pnl">PnL / UK tax</a>
+    <a href="#checklist" data-tab="checklist">Launch checklist</a>
+    <a href="#portfolio" data-tab="portfolio">Portfolio</a>
+    <a href="#api" data-tab="api">API</a>
+  </nav>
+  <span id="net" class="pill">ONLINE</span>
+</header>
+<main>
+<section id="tab-scan" class="tab">
+  <h1>Token safety scanner</h1>
+  <p class="muted">Solana mint or EVM token address. Evidence from Solana RPC, RugCheck, GoPlus, honeypot.is, DexScreener and Jupiter, run in your browser. Policy <code id="policy-id"></code>. A pass is not a buy.</p>
+  <form id="scan-form" class="row">
+    <input id="scan-addr" placeholder="Mint (Solana) or 0x… token address" autocomplete="off" spellcheck="false" required>
+    <select id="scan-chain"><option value="">auto</option><option>solana</option><option>ethereum</option><option>base</option><option>bsc</option><option>arbitrum</option><option>polygon</option></select>
+    <button>Scan</button>
+  </form>
+  <p class="muted small">Try: <a href="#scan?address=DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263">BONK</a> · <a href="#scan?address=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v">USDC (has authorities)</a> · <a href="#scan?address=0x6982508145454Ce325dDbE47a25d4ec3d2311933">PEPE (ETH)</a></p>
+  <div id="scan-out" aria-live="polite"></div>
+</section>
+
+<section id="tab-radar" class="tab" hidden>
+  <h1>New-pair radar</h1>
+  <p class="muted">Newest pools from GeckoTerminal merged with DexScreener profiles and boosts. Snapshot is refreshed by GitHub Actions; press Live to fetch from your browser.</p>
+  <div class="row"><select id="radar-chain"><option>solana</option><option>base</option><option>ethereum</option><option>bsc</option></select><button id="radar-live">Live refresh</button><span id="radar-meta" class="muted small"></span></div>
+  <div id="radar-out"></div>
+</section>
+
+<section id="tab-pnl" class="tab" hidden>
+  <h1>PnL and UK Capital Gains</h1>
+  <p class="muted">Paste trades as CSV: <code>time,side,asset,qty,total,fee[,quoteAsset,quoteQty,note]</code>. <code>total</code> is the GBP value at the time of the trade (HMRC requires sterling). Runs entirely on this device. Arithmetic aid, not tax advice.</p>
+  <textarea id="pnl-csv" rows="9" spellcheck="false"></textarea>
+  <div class="row"><button id="pnl-run">Calculate</button><button id="pnl-sample" class="ghost">Load example</button><button id="pnl-rotki" class="ghost">Download rotki CSV</button><label class="ghost file">Import CSV<input type="file" id="pnl-file" accept=".csv,text/csv" hidden></label></div>
+  <div id="pnl-out"></div>
+</section>
+
+<section id="tab-checklist" class="tab" hidden>
+  <h1>Launch checklist</h1>
+  <p class="muted">For teams launching a token, or buyers checking a team's claims. Auto items come from a live scan; manual items are saved on this device.</p>
+  <form id="cl-form" class="row"><input id="cl-addr" placeholder="Token address" required spellcheck="false"><button>Check</button></form>
+  <div id="cl-out"></div>
+</section>
+
+<section id="tab-portfolio" class="tab" hidden>
+  <h1>Portfolio</h1>
+  <p class="muted">Holdings are stored only in this browser. Prices from Jupiter; GBP via Chainlink GBP/USD (Blockchains/onetouchswitch-bridge). Wallet import needs an RPC that allows <code>getTokenAccountsByOwner</code> from browsers (free public RPCs block it) — paste your own RPC URL.</p>
+  <form id="pf-form" class="row"><input id="pf-mint" placeholder="Solana mint" required spellcheck="false"><input id="pf-qty" type="number" step="any" min="0" placeholder="Quantity" required><button>Add</button></form>
+  <form id="pf-wallet" class="row"><input id="pf-owner" placeholder="Wallet address (optional import)" spellcheck="false"><input id="pf-rpc" placeholder="Your RPC URL (e.g. Helius/QuickNode)" spellcheck="false"><button class="ghost">Import</button></form>
+  <div class="row"><button id="pf-refresh">Refresh prices</button></div>
+  <div id="pf-out"></div>
+</section>
+
+<section id="tab-api" class="tab" hidden>
+  <h1>Static JSON API, SDK and MCP</h1>
+  <p>All endpoints are static files on GitHub Pages with <code>Access-Control-Allow-Origin: *</code>, rebuilt by GitHub Actions.</p>
+  <ul id="api-list"></ul>
+  <h2>Use the SDK from any site (e.g. memecoin.grok.me)</h2>
+<pre><code>import { scanToken, radar, ukCgt } from 'https://blockchains.github.io/memecoin-markets/lib/index.js';
+const s = await scanToken({ address: 'DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263' });
+console.log(s.verdict, s.checks);</code></pre>
+  <h2>MCP (Grok, Cursor, Claude, VS Code)</h2>
+<pre><code>npx -y github:Blockchains/memecoin-markets memecoin-mcp</code></pre>
+  <p class="muted small">Built from <a href="https://github.com/Blockchains">Blockchains</a> blocks: blockchainlab-api (RPC health), onetouchswitch-bridge (GBP/USD), blockchainlab-tools (approvals/revoke, tx decoder). Source: <a href="https://github.com/Blockchains/memecoin-markets">github.com/Blockchains/memecoin-markets</a>.</p>
+</section>
+</main>
+<footer class="muted small">Not financial or tax advice. Data from DexScreener, GeckoTerminal, RugCheck, GoPlus, honeypot.is, Jupiter and public RPCs; each check names its source. Sister site: <a href="https://memecoin.markets">memecoin.markets</a> · <a href="https://blockchainlab.com">Blockchain Lab</a></footer>
+<script type="module" src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,48 @@
+name: Pages (app + live JSON snapshots)
+on:
+  push: { branches: [main] }
+  schedule: [{ cron: "*/30 * * * *" }]
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency: { group: pages, cancel-in-progress: false }
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: node scripts/build-site.mjs || (sleep 30; node scripts/build-site.mjs)
+      - uses: actions/upload-pages-artifact@v3
+        with: { path: _site }
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: { name: github-pages, url: "${{ steps.d.outputs.page_url }}" }
+    steps:
+      - id: d
+        uses: actions/deploy-pages@v4
+  smoke:
+    needs: deploy
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - name: Live endpoints respond with CORS and fresh data
+        run: |
+          set -e
+          B=https://blockchains.github.io/memecoin-markets
+          sleep 20
+          for f in v1/index.json v1/radar-solana.json v1/scans-solana.json v1/policy.json lib/index.js llms.txt; do
+            curl -sSf --retry 8 --retry-all-errors --retry-delay 10 -D /tmp/h "$B/$f" -o /tmp/b; grep -qi 'access-control-allow-origin: \*' /tmp/h; echo "ok $f $(wc -c </tmp/b) bytes"
+          done
+          curl -sSf "$B/v1/radar-solana.json" | python3 -c "import json,sys;d=json.load(sys.stdin);assert d['count']>0,d;print('radar rows',d['count'],d['generated_at'])"
+      - run: npm ci && npx -y playwright@1.64.0 install --with-deps chromium
+      - name: Browser e2e against live Pages
+        run: E2E_URL=https://blockchains.github.io/memecoin-markets/ npm run test:e2e || (sleep 45; E2E_URL=https://blockchains.github.io/memecoin-markets/ npm run test:e2e)

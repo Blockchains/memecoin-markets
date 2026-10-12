@@ -1,0 +1,89 @@
+{
+ "schemaVersion": "1.0.0",
+ "pairs": [
+  {
+   "chainId": "solana",
+   "dexId": "orca",
+   "url": "https://dexscreener.com/solana/5zpyutju9ee6jfymdgok7f6s5kczqtc9fomp3uekuya9",
+   "pairAddress": "5zpyutJu9ee6jFymDGoK7F6S5Kczqtc9FomP3ueKuyA9",
+   "labels": [
+    "wp"
+   ],
+   "baseToken": {
+    "address": "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263",
+    "name": "Bonk",
+    "symbol": "Bonk"
+   },
+   "quoteToken": {
+    "address": "So11111111111111111111111111111111111111112",
+    "name": "Wrapped SOL",
+    "symbol": "SOL"
+   },
+   "priceNative": "0.00000003103",
+   "priceUsd": "0.000003458",
+   "txns": {
+    "m5": {
+     "buys": 11,
+     "sells": 18
+    },
+    "h1": {
+     "buys": 156,
+     "sells": 129
+    },
+    "h6": {
+     "buys": 9842,
+     "sells": 8970
+    },
+    "h24": {
+     "buys": 12479,
+     "sells": 12143
+    }
+   },
+   "volume": {
+    "h24": 1037820.67,
+    "h6": 830890.59,
+    "h1": 11724.26,
+    "m5": 1862.07
+   },
+   "priceChange": {
+    "m5": -0.31,
+    "h1": -0.58,
+    "h6": 0.13,
+    "h24": 1.75
+   },
+   "liquidity": {
+    "usd": 374175.44,
+    "base": 74457668037,
+    "quote": 1046.5638
+   },
+   "fdv": 307347513,
+   "marketCap": 304344571,
+   "pairCreatedAt": 1671980424000,
+   "info": {
+    "imageUrl": "https://cdn.dexscreener.com/cms/images/ba03c0370670d176dc33bbd212eb023337a460ad7edfa053ca96ae22f31c3dcf?width=800&height=800&quality=95&format=auto",
+    "header": "https://cdn.dexscreener.com/cms/images/e2667fc59737e727f0fd18e7e534c67e371ee40689068e72d30b5bc12bf63c2d?width=1500&height=500&quality=95&format=auto",
+    "openGraph": "https://cdn.dexscreener.com/token-images/og/solana/DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263?timestamp=1791768600000",
+    "websites": [
+     {
+      "url": "https://www.bonkcoin.com",
+      "label": "Website"
+     }
+    ],
+    "socials": [
+     {
+      "url": "https://twitter.com/bonk_inu",
+      "type": "twitter"
+     },
+     {
+      "url": "https://t.me/Official_Bonk_Inu",
+      "type": "telegram"
+     },
+     {
+      "url": "https://discord.gg/qaQa6M6mN2",
+      "type": "discord"
+     }
+    ]
+   }
+  }
+ ]
+}

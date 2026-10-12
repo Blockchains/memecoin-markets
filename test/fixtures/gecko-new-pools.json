@@ -1,0 +1,117 @@
+{
+ "data": [
+  {
+   "id": "solana_8CJgDGVEYAFA5PqRAdZVBwPQU4zvjzrHFMr2pD9f9a81",
+   "type": "pool",
+   "attributes": {
+    "base_token_price_usd": "0.00000328256772621008950038271435741498784812209548262830336475628558",
+    "base_token_price_native_currency": "0.0000000284496379962569",
+    "quote_token_price_usd": "0.14039807249790012311668979663087419672836123648916798332065488",
+    "quote_token_price_native_currency": "0.00125872186726216",
+    "base_token_price_quote_token": "0.00002260200505",
+    "quote_token_price_base_token": "44243.8623446727",
+    "address": "8CJgDGVEYAFA5PqRAdZVBwPQU4zvjzrHFMr2pD9f9a81",
+    "name": "CTO / ANSEM",
+    "pool_created_at": "2026-10-12T01:29:25Z",
+    "fdv_usd": "3169.099174",
+    "market_cap_usd": null,
+    "price_change_percentage": {
+     "m5": "-39.927",
+     "m15": "-39.927",
+     "m30": "-39.927",
+     "h1": "-39.927",
+     "h6": "-39.927",
+     "h24": "-39.927"
+    },
+    "transactions": {
+     "m5": {
+      "buys": 8,
+      "sells": 4,
+      "buyers": 6,
+      "sellers": 3
+     },
+     "m15": {
+      "buys": 8,
+      "sells": 4,
+      "buyers": 6,
+      "sellers": 3
+     },
+     "m30": {
+      "buys": 8,
+      "sells": 4,
+      "buyers": 6,
+      "sellers": 3
+     },
+     "h1": {
+      "buys": 8,
+      "sells": 4,
+      "buyers": 6,
+      "sellers": 3
+     },
+     "h6": {
+      "buys": 8,
+      "sells": 4,
+      "buyers": 6,
+      "sellers": 3
+     },
+     "h24": {
+      "buys": 8,
+      "sells": 4,
+      "buyers": 6,
+      "sellers": 3
+     }
+    },
+    "volume_usd": {
+     "m5": "1671.2607688213",
+     "m15": "1671.2607688213",
+     "m30": "1671.2607688213",
+     "h1": "1671.2607688213",
+     "h6": "1671.2607688213",
+     "h24": "1671.2607688213"
+    },
+    "reserve_in_usd": "2519.2588"
+   },
+   "relationships": {
+    "base_token": {
+     "data": {
+      "id": "solana_GUe77vKeRRredwRJzp28rz2SyENZPW1tT9tDJabXpump",
+      "type": "token"
+     }
+    },
+    "quote_token": {
+     "data": {
+      "id": "solana_9cRCn9rGT8V2imeM2BaKs13yhMEais3ruM3rPvTGpump",
+      "type": "token"
+     }
+    },
+    "dex": {
+     "data": {
+      "id": "pump-fun",
+      "type": "dex"
+     }
+    }
+   }
+  }
+ ],
+ "included": [
+  {
+   "id": "solana_GUe77vKeRRredwRJzp28rz2SyENZPW1tT9tDJabXpump",
+   "type": "token",
+   "attributes": {
+    "address": "GUe77vKeRRredwRJzp28rz2SyENZPW1tT9tDJabXpump",
+    "name": "CT Olympics",
+    "symbol": "CTO",
+    "decimals": 6,
+    "image_url": "https://assets.geckoterminal.com/lq75qi48686jl0otloyx40mkbn6a",
+    "coingecko_coin_id": null
+   }
+  },
+  {
+   "id": "pump-fun",
+   "type": "dex",
+   "attributes": {
+    "name": "Pump.fun"
+   }
+  }
+ ]
+}

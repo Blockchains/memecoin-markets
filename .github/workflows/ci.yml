@@ -1,0 +1,43 @@
+name: CI
+on:
+  push:
+  pull_request:
+  schedule: [{ cron: "23 7 * * *" }]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  secrets:
+    name: Secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - run: |
+          curl -sSfL https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz | tar xz gitleaks
+          ./gitleaks git --no-banner --redact .
+  test:
+    name: Unit + live + MCP + blocks.json
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npm run test:unit
+      - run: npm run test:live || (echo "::warning::retrying once (live upstreams)"; sleep 30; npm run test:live)
+      - name: blocks.json validates against the org schema
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/Blockchains/.github/main/docs/blocks.schema.json -o /tmp/blocks.schema.json
+          npx -y -p ajv-cli@5 -p ajv-formats@2 ajv validate --spec=draft2020 -c ajv-formats -s /tmp/blocks.schema.json -d blocks.json
+  e2e:
+    name: Browser e2e (built site, incl. offline)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npx -y playwright@1.64.0 install --with-deps chromium
+      - run: node scripts/build-site.mjs
+      - run: npm run test:e2e || (sleep 30; npm run test:e2e)

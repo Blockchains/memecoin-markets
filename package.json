@@ -1,0 +1,37 @@
+{
+  "name": "memecoin-markets",
+  "version": "0.1.0",
+  "description": "Memecoin safety + trading-desk toolkit for memecoin.markets (memecoin.grok.me), built from Blockchain Lab blocks: token safety scanner (Solana mint/freeze/Token-2022, EVM honeypot/tax), new-pair radar, UK CGT/FIFO PnL with rotki export, launch checklist, portfolio. Zero-dependency browser+Node SDK, MCP server, static JSON API and Pages app.",
+  "type": "module",
+  "main": "./src/index.js",
+  "types": "./types/index.d.ts",
+  "exports": {
+    ".": { "types": "./types/index.d.ts", "default": "./src/index.js" },
+    "./package.json": "./package.json"
+  },
+  "bin": { "memecoin-mcp": "bin/memecoin-mcp.js" },
+  "files": ["src", "bin", "types", "README.md", "LICENSE", "blocks.json"],
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "build:site": "node scripts/build-site.mjs",
+    "test:unit": "node --test test/unit.test.mjs test/telegram.test.mjs",
+    "test:live": "node --test --test-concurrency=1 test/live.test.mjs test/mcp.test.mjs",
+    "test:e2e": "node --test test/e2e.test.mjs",
+    "test": "npm run test:unit && npm run test:live"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@solana-program/token": "^0.17.0",
+    "@solana/kit": "^8.4.0",
+    "grammy": "^1.46.0",
+    "playwright-core": "^1.64.0"
+  },
+  "repository": { "type": "git", "url": "git+https://github.com/Blockchains/memecoin-markets.git" },
+  "homepage": "https://blockchains.github.io/memecoin-markets/",
+  "author": "Blockchain Lab (https://blockchainlab.com)",
+  "license": "MIT",
+  "keywords": ["memecoin", "solana", "rugcheck", "honeypot", "token-safety", "pnl", "uk-cgt", "mcp", "dexscreener", "jupiter"]
+}
