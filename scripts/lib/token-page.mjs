@@ -46,6 +46,9 @@ export function tokenPage(c, t, { scan, related, ctx }) {
     { ...crumbsLd(c, crumbs), '@id': c.site + t.path + '#breadcrumb' },
     { '@type': 'FinancialProduct', '@id': c.site + t.path + '#token', name: L, alternateName: t.symbol || undefined, category: 'Cryptocurrency › Memecoin', description: `${L} memecoin${t.chain ? ` on ${cn}` : ''}.`, url: c.site + t.path, image: t.image || undefined, identifier: t.address || t.cg, ...(t.links?.length ? { sameAs: t.links.filter((l) => ['website', 'twitter'].includes(l.type)).map((l) => l.url).slice(0, 4) } : {}), ...(t.priceUsd != null ? { additionalProperty: [{ '@type': 'PropertyValue', name: 'Price (USD)', value: t.priceUsd }, ...(t.mcap ? [{ '@type': 'PropertyValue', name: 'Market cap (USD)', value: Math.round(t.mcap) }] : [])] } : {}) },
   ] };
+  const faq = tokenFaq(t, scan, sym, cn);
+  if (indexable(t) && faq.length) jsonld['@graph'].push({ '@type': 'FAQPage', '@id': c.site + t.path + '#faq', mainEntity: faq.map(([q, a]) => ({ '@type': 'Question', name: q, acceptedAnswer: { '@type': 'Answer', text: a } })) });
+  const badge = t.address ? `${c.site}badge/${t.chain}/${t.address}.svg` : null;
   const body = `<article class="token" data-id="${esc(t.id)}" ${t.address ? `data-chain="${esc(t.chain)}" data-addr="${esc(t.address)}"` : ''} data-pool="${esc(t.pools?.[0]?.pair || '')}" data-sym="${esc(sym)}">
 <header class="th">
   ${logo(t, R, 48, true)}
@@ -80,8 +83,21 @@ ${t.gt?.mintAuthority ? `<p class="small">Mint authority: <b>${esc(t.gt.mintAuth
 <div id="holders-live"></div></section>
 <section id="pools"><h2>Where ${esc(sym)} trades — liquidity pools</h2>${pools}</section>
 <section><h2>${esc(sym)} and UK tax</h2><p>In the UK each memecoin is a separate asset with its own Section 104 pool. Selling ${esc(sym)} for SOL, ETH, a stablecoin or pounds is a disposal for Capital Gains Tax, and the same-day and 30-day rules apply before pooling. Read the <a href="${R}guides/uk-memecoin-tax/">UK memecoin tax guide</a> or calculate gains in the free <a href="${R}tools/#pnl">PnL / UK CGT tool</a>.</p></section>
+${faq.length ? `<section id="faq"><h2>${esc(sym)} FAQ</h2>${faq.map(([q, a]) => `<h3>${esc(q)}</h3><p>${esc(a)}</p>`).join('')}</section>` : ''}
+${badge ? `<section class="card" id="embed"><h2>Embed the ${esc(sym)} safety badge</h2><p><img src="${esc(badge)}" alt="${esc(sym)} safety verdict badge" width="220" height="20" loading="lazy"></p><p class="small">Free for any site; updates every 30 minutes. JSON: <a href="${R}v1/token/${esc(t.chain)}/${esc(t.address)}.json">v1/token/${esc(t.chain)}/…json</a></p><textarea readonly rows="2" class="mono small" style="width:100%">&lt;a href="${esc(c.site + t.path)}"&gt;&lt;img src="${esc(badge)}" alt="${esc(sym)} safety scan on memecoin.markets"&gt;&lt;/a&gt;</textarea></section>` : ''}
 ${relRows ? `<section><h2>Related memecoins</h2>${relRows}</section>` : ''}
 <p class="muted small">Data: ${(t.sources || []).map(esc).join(', ')}${t.gt ? ', geckoterminal' : ''}. Page rebuilt ${esc(dateLong(c.built))}. Prices refresh live in your browser.</p>
 </article>`;
   return layout(c, { path: t.path, title, description, body, jsonld, crumbs, image: t.image, noindex: !indexable(t), bodyClass: 'pg-token' });
+}
+
+function tokenFaq(t, scan, sym, cn) {
+  const q = [];
+  const nm = t.name || sym;
+  if (t.priceUsd != null) q.push([`What is the price of ${nm} (${sym})?`, `${sym} trades at ${price(t.priceUsd).replace(/<[^>]+>/g, '')}${t.mcap ? ` with a market cap of ${usd(t.mcap)}` : ''}${t.ch24h != null ? ` (${t.ch24h >= 0 ? '+' : ''}${t.ch24h.toFixed(1)}% in 24h)` : ''}. Figures come from CoinGecko and DexScreener and refresh every 30 minutes.`]);
+  if (t.address) q.push([`Is ${sym} safe or a rug pull?`, scan ? `The latest stored scan (${dateLong(scan.scannedAt)}) returned ${scan.verdict}. ${scan.verdictNote || ''} A scan measures mint/freeze authority or honeypot and tax risk, holder concentration, liquidity and sell routes; it is evidence, not a guarantee.`.trim() : `No stored scan yet. Run the free live scan on this page, which checks mint/freeze authority, honeypot and tax risk, holders, liquidity and a sell route.`]);
+  if (t.pools?.length) { const p = t.pools[0]; q.push([`Where can I trade ${sym}?`, `The deepest pool is ${sym}/${p.quote} on ${p.dex} with ${usd(p.liq)} of liquidity, out of ${t.pairsCount || t.pools.length} DEX pools on ${cn}. Always check liquidity against your trade size.`]); }
+  if (t.address) q.push([`What is the ${sym} contract address?`, `${sym} on ${cn}: ${t.address}. Copy it from this page and compare it with the project's official links to avoid look-alike tokens.`]);
+  q.push([`How is ${sym} taxed in the UK?`, `Selling or swapping ${sym} is a disposal for Capital Gains Tax. HMRC applies the same-day and 30-day rules, then a Section 104 pool per token. See the UK memecoin tax guide on this site.`]);
+  return q;
 }

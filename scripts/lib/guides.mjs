@@ -120,4 +120,82 @@ ${rows.length ? table(rows, R, { cols: ['rank', 'name', 'price', 'ch24h', 'ch7d'
   },
 ];
 
-export function guidePage(g, d) { return { slug: g.slug, title: g.title(d), description: g.description(d), body: (R) => g.body(d, R), published: PUBLISHED }; }
+export function guidePage(g, d) { return { slug: g.slug, title: g.title(d), description: g.description(d), body: (R) => g.body(d, R), published: g.published || PUBLISHED, faq: FAQ[g.slug] || g.faq || [] }; }
+
+// Visible FAQ + FAQPage JSON-LD per guide (answers kept short and factual).
+const FAQ = {
+  'uk-memecoin-tax': [
+    ['Do I pay tax on memecoins in the UK?', 'Yes. For most individuals profits are subject to Capital Gains Tax. Selling for pounds, swapping for another token and spending tokens are all disposals.'],
+    ['Is swapping one memecoin for another taxable?', 'Yes. A token-to-token swap is a disposal of the token you give up, valued in pounds at the time of the swap.'],
+    ['Can I claim a loss on a rug-pulled memecoin?', 'If the token has become worthless you can make a negligible value claim, which treats it as sold and reacquired at nil so the loss can be used.'],
+    ['What is the CGT allowance for 2026/27?', 'The annual exempt amount is £3,000. Gains above it are taxed at 18% within the basic rate band and 24% above it.'],
+  ],
+  'how-to-spot-a-memecoin-rug-pull': [
+    ['What is a memecoin rug pull?', 'A rug pull is when insiders remove liquidity, mint new supply or block selling, leaving holders with tokens they cannot sell at a fair price.'],
+    ['How can I check a token for free?', 'Check mint and freeze authority, LP lock or burn, top-10 holder share, and whether a sell route exists. The safety scanner on this site does all of these from free public data.'],
+    ['Does a CLEAR scan mean a token is safe?', 'No. It means every hard check was measured and passed at scan time. Owners and holders can still sell, and rules can change.'],
+  ],
+  'what-is-a-honeypot-token': [
+    ['What is a honeypot token?', 'A token whose contract lets you buy but blocks or heavily taxes selling, through blacklists, owner-only rules or extreme sell taxes.'],
+    ['Can Solana tokens be honeypots?', 'Classic SPL tokens cannot run custom sell logic, but freeze authority and Token-2022 extensions such as transfer hooks or permanent delegates can have a similar effect.'],
+    ['How do I test if I can sell a token?', 'Simulate a buy and sell without sending a transaction. Token pages here run honeypot.is, GoPlus and an on-chain eth_call simulation.'],
+  ],
+  'memecoin-market-cap-vs-liquidity': [
+    ['What is the difference between market cap and FDV?', 'Market cap uses circulating supply; FDV uses maximum supply. A large gap means more tokens can still enter the market.'],
+    ['Why does liquidity matter more than market cap?', 'Liquidity is the money actually in DEX pools. It decides how much you can sell before the price moves sharply.'],
+  ],
+  'how-to-read-a-memecoin-safety-scan': [
+    ['What do CLEAR, DESK_PASS, INCOMPLETE and FAIL mean?', 'CLEAR: every hard check measured and passed. DESK_PASS: no measured hard fail but some checks unmeasured. INCOMPLETE: not enough evidence. FAIL: at least one measured hard fail.'],
+    ['Why do big memecoins sometimes FAIL?', 'Often because a mint or freeze authority is still live, or holders are very concentrated. That is a real risk even for large tokens.'],
+  ],
+  'mint-and-freeze-authority-explained': [
+    ['What is mint authority on Solana?', 'The key allowed to create new supply of an SPL token. If it is not revoked, supply can be inflated at any time.'],
+    ['What is freeze authority?', 'The key allowed to freeze token accounts so holders cannot transfer or sell. Memecoins have no legitimate need for it.'],
+    ['How do I check if authorities are revoked?', 'Read the mint account from any Solana RPC: a null mint or freeze authority means it was revoked. Token pages here show both.'],
+  ],
+  'memecoin-liquidity-lock-explained': [
+    ['What does LP locked or burned mean?', 'LP tokens represent a share of the pool. Burned LP can never be withdrawn; locked LP cannot be withdrawn until the lock ends.'],
+    ['Is burned liquidity enough to be safe?', 'No. It removes the liquidity-pull risk, but insiders can still dump tokens they hold, and liquidity can still be thin.'],
+  ],
+  'how-to-buy-memecoins-safely-uk': [
+    ['Is it legal to buy memecoins in the UK?', 'Yes, individuals can buy cryptoassets. UK firms that promote them must follow FCA financial promotion rules, and many memecoins are only available on decentralised exchanges.'],
+    ['What records should UK buyers keep?', 'Date and time, token, amount, value in pounds, fees, and the wallet or exchange used for every trade, for Capital Gains Tax.'],
+  ],
+};
+
+const evergreen = (slug, title, description, html) => ({ slug, title: () => title, description: () => description, body: (d, R) => html(d, R) });
+GUIDES.push(
+  evergreen('how-to-read-a-memecoin-safety-scan', 'How to read a memecoin safety scan: every check explained', 'What each line of a memecoin safety scan measures — mint/freeze authority, Token-2022 extensions, honeypot simulation, taxes, holder concentration, liquidity and sell route — and what the verdicts mean.', (d, R) => {
+    const ex = d.ranked.filter((t) => t.scan).slice(0, 8);
+    return `<p>Every token page on memecoin.markets shows a stored safety scan and a button to run a fresh one in your browser. This guide explains each check, which free source it uses, and how to read the result. ${num(d.ranked.filter((t) => t.scan).length)} ranked tokens currently have a stored scan.</p>
+<h2>Hard checks vs soft checks</h2><p>A <b>hard</b> check can fail a token on its own (for example a live freeze authority or a honeypot). A <b>soft</b> check adds context (token age, socials, boosts) but never fails a token by itself.</p>
+<h2>The checks</h2><ul><li><b>Mint authority</b> — can new supply be created? Read directly from the Solana mint account. See <a href="${R}guides/mint-and-freeze-authority-explained/">mint and freeze authority explained</a>.</li><li><b>Freeze authority</b> — can holders be frozen?</li><li><b>Token-2022 extensions</b> — permanent delegate, transfer hook, transfer fee.</li><li><b>Honeypot / tax (EVM)</b> — honeypot.is, GoPlus and an on-chain buy/sell <code>eth_call</code>. See <a href="${R}guides/what-is-a-honeypot-token/">what is a honeypot token</a>.</li><li><b>Holder concentration</b> — top-10 share excluding pools.</li><li><b>Liquidity</b> — total DEX liquidity; see <a href="${R}guides/memecoin-liquidity-lock-explained/">liquidity locks explained</a>.</li><li><b>Sell route</b> — a Jupiter quote (Solana) proves a sell path exists.</li></ul>
+<h2>Verdicts</h2><p><b>CLEAR</b>, <b>DESK_PASS</b>, <b>INCOMPLETE</b> and <b>FAIL</b> are defined in the <a href="${R}methodology/">methodology</a>. A pass is never a buy signal.</p>
+${ex.length ? `<h2>Examples from the current rankings</h2>${table(ex, R, { cols: ['rank', 'name', 'mcap', 'liq'] })}<p class="small">Open any token to see its full scan table.</p>` : ''}`;
+  }),
+  evergreen('mint-and-freeze-authority-explained', 'Mint and freeze authority explained: the first Solana memecoin check', 'What mint authority and freeze authority are on Solana SPL tokens, why a memecoin should have both revoked, and how to check any token for free.', (d, R) => {
+    const live = d.ranked.filter((t) => t.chain === 'solana' && t.gt && (t.gt.mintAuthority === 'yes' || t.gt.freezeAuthority === 'yes')).slice(0, 10);
+    return `<p>Every Solana SPL token has a <b>mint account</b> with two optional keys: a <b>mint authority</b> that can create new tokens and a <b>freeze authority</b> that can freeze any holder's token account. For a memecoin, both should normally be revoked (set to none).</p>
+<h2>Why it matters</h2><ul><li>Live mint authority: supply can be inflated and dumped at any time.</li><li>Live freeze authority: your tokens can be frozen so you cannot sell — a Solana equivalent of a honeypot.</li></ul>
+<h2>How to check</h2><ol><li>Open the token page here and read the <b>Holders</b> section (GeckoTerminal) and the stored scan (Solana RPC).</li><li>Or query any public RPC with <code>getAccountInfo</code> on the mint and read the authority fields.</li><li>Run the <a href="${R}tools/#scan">free safety scanner</a> on any address.</li></ol>
+<h2>Token-2022</h2><p>Newer tokens can use the Token-2022 program, whose extensions (permanent delegate, transfer hooks, transfer fees) can be as dangerous as a live authority. The scanner decodes them from the mint account.</p>
+${live.length ? `<h2>Ranked Solana tokens with a live authority right now</h2>${table(live, R, { cols: ['rank', 'name', 'mcap', 'liq'] })}` : ''}
+<p>Next: <a href="${R}guides/how-to-spot-a-memecoin-rug-pull/">9 rug-pull checks</a> · <a href="${R}guides/best-solana-memecoins/">best Solana memecoins</a>.</p>`;
+  }),
+  evergreen('memecoin-liquidity-lock-explained', 'Memecoin liquidity locks explained: burned vs locked LP', 'How DEX liquidity pools work for memecoins, what LP burned and LP locked mean, how to check them, and why liquidity depth still matters after a lock.', (d, R) => {
+    const deep = [...d.ranked].filter((t) => t.liq).sort((a, b) => b.liq - a.liq).slice(0, 10);
+    return `<p>A memecoin's price on a DEX comes from a <b>liquidity pool</b>: the token paired with SOL, ETH or a stablecoin. Whoever supplied that liquidity holds <b>LP tokens</b> that can withdraw it.</p>
+<h2>Burned vs locked</h2><ul><li><b>Burned LP</b>: LP tokens sent to an address nobody controls — the liquidity can never be withdrawn. pump.fun graduations burn LP automatically.</li><li><b>Locked LP</b>: LP tokens held in a time-lock contract. Safe only until the unlock date.</li><li><b>Unlocked LP</b>: the deployer can pull the pool in one transaction — the classic rug pull.</li></ul>
+<h2>Depth still matters</h2><p>Even with burned LP, a $20K pool cannot absorb a $5K sell without a big price drop. Compare liquidity to market cap in <a href="${R}guides/memecoin-market-cap-vs-liquidity/">market cap vs liquidity</a>.</p>
+<h2>Deepest memecoin liquidity right now</h2>${table(deep, R, { cols: ['rank', 'name', 'mcap', 'liq', 'vol24'] })}
+<p>See also <a href="${R}liquidity/">all memecoins by liquidity</a> and the <a href="${R}guides/how-to-read-a-memecoin-safety-scan/">safety scan guide</a>.</p>`;
+  }),
+  evergreen('how-to-buy-memecoins-safely-uk', 'How to buy memecoins safely in the UK: a step-by-step checklist', 'A UK-focused checklist for buying memecoins: choosing a wallet, verifying the contract address, checking liquidity and safety, sizing trades and keeping HMRC-ready records.', (d, R) => `<p class="note">General information, not financial advice. Most memecoins lose most of their value.</p>
+<ol class="steps"><li><h3>Use a self-custody wallet you control</h3><p>Never share a seed phrase. This site never asks you to connect a wallet.</p></li>
+<li><h3>Get the contract address from an official source</h3><p>Look-alike tokens copy names and symbols. Compare the address on the <a href="${R}">rankings</a> token page with the project's own links; token pages flag links on the phishing deny-list.</p></li>
+<li><h3>Run a safety scan</h3><p>Check mint/freeze authority, honeypot and tax risk, holders and sell route with the <a href="${R}tools/#scan">free scanner</a>. Read <a href="${R}guides/how-to-read-a-memecoin-safety-scan/">how to read a scan</a>.</p></li>
+<li><h3>Check liquidity against your size</h3><p>Prefer tokens with deep pools; see <a href="${R}guides/memecoin-liquidity-lock-explained/">liquidity locks explained</a>.</p></li>
+<li><h3>Size small and expect volatility</h3><p>Only use money you can afford to lose entirely.</p></li>
+<li><h3>Keep records for HMRC</h3><p>Every swap is a disposal. Read the <a href="${R}guides/uk-memecoin-tax/">UK memecoin tax guide</a> and use the <a href="${R}tools/#pnl">free CGT calculator</a>.</p></li></ol>
+<p>Today's ${num(d.ranked.length)} ranked memecoins: <a href="${R}">by market cap</a> · <a href="${R}trending/">trending</a> · <a href="${R}new/">new pairs</a>.</p>`),
+);

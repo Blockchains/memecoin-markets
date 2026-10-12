@@ -100,6 +100,17 @@ write('gainers.json', { rows: d.gainers.map(slimTok) });
 write('losers.json', { rows: d.losers.map(slimTok) });
 write('categories.json', { categories: cats.map(([slug, name]) => ({ slug, name, url: `${site}category/${slug}/`, ids: d.ranked.filter((t) => (t.cats || []).includes(slug)).map((t) => t.id) })) });
 for (const t of d.tokens) if (t.address) write(`token/${t.chain}/${t.address}.json`, { token: { ...slimTok(t), pools: t.pools || [], links: t.links || [], linkCheck: t.linkCheck || null, holdersDist: t.gt?.holders || null, authorities: t.gt ? { mint: t.gt.mintAuthority, freeze: t.gt.freezeAuthority } : null, ath: t.ath ?? null, athDate: t.athDate || null, spark7d: t.spark || null }, scan: d.scans[t.id] || null });
+// Embeddable SVG safety badges (free, backlink-worthy): /badge/{chain}/{address}.svg
+const BADGE_COL = { CLEAR: '#16a34a', DESK_PASS: '#65a30d', INCOMPLETE: '#ca8a04', FAIL: '#dc2626' };
+const xmlEsc = (x) => String(x).replace(/[<>&"]/g, (ch) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' })[ch]);
+let badges = 0;
+for (const t of d.tokens) {
+  if (!t.address || !/^[A-Za-z0-9]+$/.test(t.address)) continue;
+  const v = d.scans[t.id]?.verdict || 'UNSCANNED'; const l = `${(t.symbol || 'token').slice(0, 12)} safety`; const w1 = 8 + l.length * 6.5; const w2 = 10 + v.length * 7;
+  mkdirSync(`${OUT}/badge/${t.chain}`, { recursive: true });
+  writeFileSync(`${OUT}/badge/${t.chain}/${t.address}.svg`, `<svg xmlns="http://www.w3.org/2000/svg" width="${w1 + w2}" height="20" role="img" aria-label="${xmlEsc(l)}: ${v}"><title>${xmlEsc(l)}: ${v} — memecoin.markets</title><rect width="${w1}" height="20" fill="#1f2937"/><rect x="${w1}" width="${w2}" height="20" fill="${BADGE_COL[v] || '#6b7280'}"/><g fill="#fff" font-family="Verdana,DejaVu Sans,sans-serif" font-size="11"><text x="6" y="14">${xmlEsc(l)}</text><text x="${w1 + 5}" y="14">${v}</text></g></svg>`);
+  badges++;
+}
 // state for the next build (rolling caches)
 writeFileSync(`${OUT}/v1/state.json`, JSON.stringify({ generated_at: now, tokens: col.tokens.map(({ rank, ...t }) => t), trending: col.trending, boosted: col.boosted, state: col.state }));
 
@@ -115,12 +126,13 @@ const endpoints = [
   ['v1/scans-solana.json', 'Full safety scans for the latest + top DexScreener Solana boosts and the freshest liquid pools, keyed by mint'],
   ['v1/policy.json', `Desk policy ${POLICY.id} thresholds and the launch checklist`],
   ['lib/index.js', 'The SDK as a browser ES module: import { scanToken, radar, ukCgt } from this URL'],
-  ['sitemap.xml', 'Every indexable page'], ['llms.txt', 'Agent-readable summary'], ['blocks.json', 'Blockchains building-block manifest'],
+  ['sitemap.xml', 'Every indexable page'], ['llms.txt', 'Agent-readable summary'], ['llms-full.txt', 'Full agent-readable dump: guides + top 200 tokens'], ['badge/{chain}/{address}.svg', 'Embeddable SVG safety-verdict badge per token'], ['blocks.json', 'Blockchains building-block manifest'],
 ];
 write('index.json', { endpoints: endpoints.map(([path, description]) => ({ path, url: `${site}${path}`, description })), counts: { ranked: d.ranked.length, tokenPages: tokenCount, rankingPages: pages, sitemapUrls: urls.length + 0 }, errors });
 seoFiles(OUT, c, urls, d);
+writeFileSync(`${OUT}/indexnow.json`, JSON.stringify({ key: '136124331ff9c726c6938adae4301af3', keyLocation: `${site}136124331ff9c726c6938adae4301af3.txt`, host: new URL(site).host, urls: urls.filter((u) => u[2] !== false).map(([p]) => site + p) }));
 
 // Full-text search index (Pagefind, MIT) over the generated HTML.
 if (process.env.PAGEFIND !== '0') { try { execFileSync('npx', ['-y', 'pagefind', '--site', OUT, '--glob', '{guides,category,chain,methodology,about}/**/*.html'], { stdio: 'ignore', timeout: 120000 }); } catch (e) { errors.pagefind = String(e.message).slice(0, 120); } }
 
-console.log(JSON.stringify({ out: OUT, site, ms: Date.now() - t0, ranked: d.ranked.length, tokenPages: tokenCount, sitemap: urls.length, trending: d.trendingRows.length, fresh: d.fresh.length, gainers: d.gainers.length, scans: Object.keys(col.state.scans).length, deskScans: scans.length, counts: col.counts, errors }, null, 1));
+console.log(JSON.stringify({ out: OUT, site, ms: Date.now() - t0, ranked: d.ranked.length, tokenPages: tokenCount, sitemap: urls.length, trending: d.trendingRows.length, fresh: d.fresh.length, gainers: d.gainers.length, scans: Object.keys(col.state.scans).length, deskScans: scans.length, badges, counts: col.counts, errors }, null, 1));

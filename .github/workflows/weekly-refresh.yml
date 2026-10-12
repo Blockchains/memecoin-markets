@@ -1,0 +1,15 @@
+name: Weekly content refresh
+# Mondays 06:17 UTC: full rebuild via the Pages workflow (guides, token pages, sitemap lastmod, llms-full.txt),
+# then smoke tests + IndexNow resubmission run because it is a workflow_dispatch event.
+on:
+  schedule: [{ cron: "17 6 * * 1" }]
+  workflow_dispatch:
+permissions:
+  actions: write
+  contents: read
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - run: gh workflow run pages.yml -R ${{ github.repository }} --ref main
+        env: { GH_TOKEN: "${{ github.token }}" }
