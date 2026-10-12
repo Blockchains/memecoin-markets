@@ -43,9 +43,23 @@ test('token pages return 200 with unique title, canonical, JSON-LD; BONK live sc
     assert.match(await page.textContent('script[type="application/ld+json"]'), /FinancialProduct/);
   }
   assert.equal(titles.size, 5, 'titles unique');
-  await page.goto(`${base}token/solana/DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263/`);
-  await page.click('#live-scan'); // joins the auto-run if it already started (no double scan)
-  await page.waitForSelector('[data-live-verdict]', { timeout: 90000 });
+  // Live BONK scan: upstream RPCs/GoPlus can stall in CI — reload+retry before failing.
+  let verdictOk = false;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    await page.goto(`${base}token/solana/DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263/`, { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('#live-scan', { timeout: 15000 });
+    await page.click('#live-scan'); // joins the auto-run if it already started (no double scan)
+    try {
+      await page.waitForSelector('[data-live-verdict]', { timeout: 90000 });
+      verdictOk = true;
+      break;
+    } catch (err) {
+      const errText = await page.textContent('#live-scan-out').catch(() => '');
+      if (attempt === 3) throw err;
+      console.log(`live scan attempt ${attempt} timed out (${errText.slice(0, 120)}); retrying`);
+    }
+  }
+  assert.ok(verdictOk, 'live scan produced a verdict');
   assert.match(await page.textContent('[data-live-check="mint_authority"]'), /PASS/);
   assert.match(await page.textContent('[data-live-check="freeze_authority"]'), /PASS/);
   await page.close();
