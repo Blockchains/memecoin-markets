@@ -46,7 +46,8 @@ export async function scanToken(input) {
   if (chain !== 'solana' && !isEvmAddress(address)) throw new Error('not an EVM token address');
   const started = Date.now();
   const r = chain === 'solana' ? await scanSolana(address, input) : await scanEvm(chain, address, input);
-  const fails = r.checks.filter((c) => c.status === 'fail');
+  // Soft fails (rugcheck noise, mintable-when-renounced, etc.) stay on the row but do not flip the verdict.
+  const fails = r.checks.filter((c) => c.status === 'fail' && c.hard);
   const unknown = r.checks.filter((c) => c.status === 'unknown' && c.hard);
   const liq = r.market?.liquidityUsd ?? 0;
   const verdict = fails.length ? 'FAIL' : unknown.length ? (liq >= POLICY.deskLiquidityUsd ? 'DESK_PASS' : 'INCOMPLETE') : 'CLEAR';
@@ -118,8 +119,10 @@ async function scanSolana(mint, input) {
   if (rcv) {
     // Liquidity is measured by our own hard check against the desk bar, so RugCheck's own
     // liquidity dangers are reported but not double-counted as a fail.
-    const danger = rcv.risks.filter((x) => x.level === 'danger' && !/liquidity|LP providers/i.test(x.name));
-    checks.push(check('rugcheck', 'RugCheck risks', danger.length ? 'fail' : rcv.risks.length ? 'warn' : 'pass', rcv.risks.map((x) => `${x.level}: ${x.name}`).join('; ') || 'none', 'rugcheck'));
+    // "Missing metadata" is often a RugCheck false positive on large mints (BONK); GoPlus covers mutability separately.
+    const danger = rcv.risks.filter((x) => x.level === 'danger' && !/liquidity|LP providers|Missing metadata/i.test(x.name));
+    const risks = rcv.risks.length;
+    checks.push(check('rugcheck', 'RugCheck risks', danger.length ? 'fail' : risks ? 'warn' : 'pass', rcv.risks.map((x) => `${x.level}: ${x.name}`).join('; ') || 'none', 'rugcheck'));
     if (rcv.lpLockedPct != null && top?.dex !== 'pumpfun') checks.push(check('lp_locked', 'LP locked/burned', rcv.lpLockedPct < POLICY.warnLpLockedPct ? 'warn' : 'pass', Math.round(rcv.lpLockedPct * 10) / 10, 'rugcheck'));
   } else checks.push(check('rugcheck', 'RugCheck risks', 'unknown', null, 'rugcheck'));
   if (g?.metadataMutable != null) checks.push(check('metadata', 'Metadata immutable', g.metadataMutable ? 'warn' : 'pass', g.metadataMutable ? 'mutable' : 'immutable', 'goplus'));
