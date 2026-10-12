@@ -1,7 +1,7 @@
 // Build the Pages site: CMC-style memecoin rankings (static HTML per token) + toolkit (/tools/)
 // + SDK as ESM under /lib + JSON API under /v1. Run by GitHub Actions on push and every 30 minutes.
 // Free public data only; rolling caches are carried over from the previously deployed v1/state.json.
-import { cpSync, mkdirSync, rmSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
+import { readdirSync, cpSync, mkdirSync, rmSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { radar, scanToken, POLICY, LAUNCH_ITEMS } from '../src/index.js';
 import { latestBoosts, topBoosts } from '../src/sources/dexscreener.js';
@@ -10,6 +10,8 @@ import { collect, slimScan } from './lib/collect.mjs';
 import { buildData, writePages, seoFiles } from './lib/pages.mjs';
 import { layout } from './lib/render.mjs';
 
+// IndexNow ownership key: public by design (served at /<key>.txt), not a secret.
+const INDEXNOW_KEY = readdirSync('web').find((f) => /^[0-9a-f]{32}\.txt$/.test(f))?.slice(0, 32);
 const OUT = process.env.OUT || '_site';
 const PAGES = 'https://blockchains.github.io/memecoin-markets/';
 const OFFLINE = process.env.OFFLINE === '1';
@@ -130,7 +132,7 @@ const endpoints = [
 ];
 write('index.json', { endpoints: endpoints.map(([path, description]) => ({ path, url: `${site}${path}`, description })), counts: { ranked: d.ranked.length, tokenPages: tokenCount, rankingPages: pages, sitemapUrls: urls.length + 0 }, errors });
 seoFiles(OUT, c, urls, d);
-writeFileSync(`${OUT}/indexnow.json`, JSON.stringify({ key: '136124331ff9c726c6938adae4301af3', keyLocation: `${site}136124331ff9c726c6938adae4301af3.txt`, host: new URL(site).host, urls: urls.filter((u) => u[2] !== false).map(([p]) => site + p) }));
+writeFileSync(`${OUT}/indexnow.json`, JSON.stringify({ key: INDEXNOW_KEY, keyLocation: `${site}${INDEXNOW_KEY}.txt`, host: new URL(site).host, urls: urls.filter((u) => u[2] !== false).map(([p]) => site + p) }));
 
 // Full-text search index (Pagefind, MIT) over the generated HTML.
 if (process.env.PAGEFIND !== '0') { try { execFileSync('npx', ['-y', 'pagefind', '--site', OUT, '--glob', '{guides,category,chain,methodology,about}/**/*.html'], { stdio: 'ignore', timeout: 120000 }); } catch (e) { errors.pagefind = String(e.message).slice(0, 120); } }
