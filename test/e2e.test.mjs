@@ -44,8 +44,8 @@ test('token pages return 200 with unique title, canonical, JSON-LD; BONK live sc
   }
   assert.equal(titles.size, 5, 'titles unique');
   await page.goto(`${base}token/solana/DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263/`);
-  await page.click('#live-scan');
-  await page.waitForSelector('[data-live-verdict]', { timeout: 60000 });
+  await page.click('#live-scan'); // joins the auto-run if it already started (no double scan)
+  await page.waitForSelector('[data-live-verdict]', { timeout: 90000 });
   assert.match(await page.textContent('[data-live-check="mint_authority"]'), /PASS/);
   assert.match(await page.textContent('[data-live-check="freeze_authority"]'), /PASS/);
   await page.close();

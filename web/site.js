@@ -197,13 +197,15 @@ async function tokenPage(a) {
   }
   // live safety scan with the SDK (same code as the build)
   const btn = $('#live-scan');
-  const runScan = async () => {
-    const out = $('#live-scan-out'); btn.disabled = true; out.innerHTML = '<p class="muted">Scanning…</p>';
+  let running = null;
+  const runScan = () => (running ||= doScan().finally(() => { running = null; }));
+  const doScan = async () => {
+    const out = $('#live-scan-out'); btn.setAttribute('aria-busy', 'true'); out.innerHTML = '<p class="muted">Scanning…</p>';
     try {
       const { scanToken } = await import(ROOT + 'lib/index.js');
       const s = await scanToken({ address: btn.dataset.addr, chain: btn.dataset.chain });
       out.innerHTML = `<p><span class="v v-${esc(s.verdict)}" data-live-verdict="${esc(s.verdict)}">${esc(s.verdict)}</span> <span class="muted small">live · ${s.ms} ms</span></p><div class="tw"><table class="checks"><tbody>${s.checks.map((c) => `<tr data-live-check="${esc(c.id)}"><td><span class="s s-${esc(c.status)}">${esc(c.status.toUpperCase())}</span></td><td>${esc(c.label)}</td><td class="mono small">${esc(c.value ?? '—')}</td><td class="muted small">${esc(c.source)}</td></tr>`).join('')}</tbody></table></div>${Object.keys(s.errors || {}).length ? `<p class="small err">Unavailable: ${esc(Object.keys(s.errors).join(', '))}</p>` : ''}`;
-    } catch (e) { out.innerHTML = `<p class="err">${esc(e.message)}</p>`; } finally { btn.disabled = false; }
+    } catch (e) { out.innerHTML = `<p class="err">${esc(e.message)}</p>`; } finally { btn.removeAttribute('aria-busy'); }
   };
   if (btn) { btn.addEventListener('click', runScan); if (!$('#safety [data-verdict]')) { const io = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting)) { io.disconnect(); runScan(); } }); io.observe(btn); } }
 }

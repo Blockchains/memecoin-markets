@@ -36,14 +36,22 @@ export async function collect({ prev = {}, log = console.error } = {}) {
   const state = { pools: prev.pools || {}, gt: prev.gt || {}, scans: prev.scans || {}, assets: prev.assets || {}, cats: prev.cats || {}, platforms: prev.platforms || {}, firstSeen: prev.firstSeen || {} };
   const upsert = (id, patch) => { const t = tokens.get(id) || { id, sources: [] }; for (const [k, v] of Object.entries(patch)) if (v !== undefined && v !== null && k !== 'sources') t[k] = v; t.sources = [...new Set([...t.sources, ...(patch.sources || [])])]; tokens.set(id, t); return t; };
 
+  const started = Date.now();
+  const overBudget = () => Date.now() - started > env('COLLECT_BUDGET_MS', 9 * 60e3);
+  // Keyless CoinGecko: on 429 wait once, then stop calling CoinGecko for this build (rotating work resumes next build).
+  let cgBlocked = false;
+  const cgCall = async (fn) => {
+    if (cgBlocked) throw new Error('coingecko: skipped after 429 this build');
+    try { return await fn(); } catch (e) { if (!/429|busy/.test(e.message)) throw e; await sleep(env('CG_BACKOFF', 65000)); try { return await fn(); } catch (e2) { if (/429|busy/.test(e2.message)) cgBlocked = true; throw e2; } }
+  };
   // 1) CoinGecko meme universe (+ contract addresses).
   const cgRows = [];
   const pages = env('CG_PAGES', 4);
   for (let p = 1; p <= pages; p++) {
-    try { cgRows.push(...(await cg.markets({ category: 'meme-token', page: p })).map(slimRow)); } catch (e) { errors[`coingecko:markets:${p}`] = e.message; }
+    try { cgRows.push(...(await cgCall(() => cg.markets({ category: 'meme-token', page: p }))).map(slimRow)); } catch (e) { errors[`coingecko:markets:${p}`] = e.message; }
     await sleep(env('CG_SLEEP', 7000));
   }
-  try { const all = await cg.platforms(); state.platforms = all; } catch (e) { errors['coingecko:platforms'] = e.message; }
+  try { const all = await cgCall(() => cg.platforms()); state.platforms = all; } catch (e) { errors['coingecko:platforms'] = e.message; }
   // Categories: refresh a rotating slice each build, keep the rest from the last build.
   const slot = Math.floor(now / (30 * 60e3));
   const perBuild = env('CG_CATS_PER_BUILD', 6);
@@ -51,13 +59,14 @@ export async function collect({ prev = {}, log = console.error } = {}) {
   const due = cats.filter(([slug]) => !state.cats[slug]).concat(cats.filter((_, i) => i % Math.ceil(cats.length / perBuild) === slot % Math.ceil(cats.length / perBuild)));
   for (const [slug] of [...new Map(due.map((d) => [d[0], d])).values()].slice(0, perBuild)) {
     await sleep(env('CG_SLEEP', 7000));
-    try { const rows = await cg.markets({ category: slug, page: 1 }); state.cats[slug] = { at: now, ids: rows.map((r) => r.cg), rows: rows.filter((r) => (r.mcap || 0) > 0).slice(0, 250).map(slimRow) }; } catch (e) { errors[`coingecko:cat:${slug}`] = e.message; }
+    if (cgBlocked) break;
+    try { const rows = await cgCall(() => cg.markets({ category: slug, page: 1 })); state.cats[slug] = { at: now, ids: rows.map((r) => r.cg), rows: rows.filter((r) => (r.mcap || 0) > 0).slice(0, 250).map(slimRow) }; } catch (e) { errors[`coingecko:cat:${slug}`] = e.message; }
   }
   const prevCg = new Map((prev.tokens || []).filter((t) => t.cg).map((t) => [t.cg, t]));
   const cgById = new Map();
   for (const r of cgRows) cgById.set(r.cg, r);
   for (const c of Object.values(state.cats)) for (const r of c.rows || []) if (!cgById.has(r.cg)) cgById.set(r.cg, r);
-  if (!cgRows.length) for (const t of prevCg.values()) if (!cgById.has(t.cg)) cgById.set(t.cg, { ...t, stale: true });
+  if (cgRows.length < 250 * pages) for (const t of prevCg.values()) if (!cgById.has(t.cg)) cgById.set(t.cg, { ...t, stale: true });
   for (const r of cgById.values()) {
     if (!r.mcap && !r.vol24) continue;
     const pc = cg.primaryContract(state.platforms[r.cg]);
@@ -122,6 +131,7 @@ export async function collect({ prev = {}, log = console.error } = {}) {
   // 3b) Full pool list (all DEXes) per token — rolling, 6h TTL, biggest first. tokens/v1 only returns the top pool.
   const poolDue = [...tokens.values()].filter((t) => t.pools && now - (state.pools[t.id]?.at || 0) > 6 * 36e5).sort((a, b) => (b.mcap || b.liq || 0) - (a.mcap || a.liq || 0)).slice(0, env('POOLS_BUDGET', 200));
   for (const t of poolDue) {
+    if (overBudget()) { errors['dexscreener:pairs'] = 'time budget'; break; }
     try {
       const mine = (await pairsForToken(t.chain, t.address, { retries: 1 })).filter((p) => same(p.base.address, t.address));
       state.pools[t.id] = { at: now, liq: mine.reduce((s, p) => s + (p.liquidityUsd || 0), 0), vol24: mine.reduce((s, p) => s + (p.volume24hUsd || 0), 0), count: mine.length,
@@ -154,8 +164,10 @@ export async function collect({ prev = {}, log = console.error } = {}) {
   // 5) GeckoTerminal token info (holders, authorities, socials) — rolling, 24h TTL.
   const gtBudget = env('GT_BUDGET', 60);
   const gtDue = [...tokens.values()].filter((t) => t.address && GT_NETWORK[t.chain] && !t.stale).sort((a, b) => (state.gt[a.id]?.at || 0) - (state.gt[b.id]?.at || 0) || (b.mcap || b.liq || 0) - (a.mcap || a.liq || 0)).filter((t) => now - (state.gt[t.id]?.at || 0) > DAY).slice(0, gtBudget);
+  let gtFails = 0; let gtDone = 0;
   for (const t of gtDue) {
-    try { const i = await politely(() => gtTokenInfo(t.chain, t.address, { retries: 0 })); state.gt[t.id] = { at: now, ...i }; } catch (e) { state.gt[t.id] = { at: now, error: e.message.slice(0, 120) }; }
+    if (gtFails >= 2 || overBudget()) { errors['geckoterminal:info'] = `stopped after ${gtDone} (${gtFails >= 2 ? '429s' : 'time budget'})`; break; }
+    try { const i = await politely(() => gtTokenInfo(t.chain, t.address, { retries: 0 })); state.gt[t.id] = { at: now, ...i }; gtFails = 0; gtDone++; } catch (e) { if (/429|busy/.test(e.message)) gtFails++; else state.gt[t.id] = { at: now, error: e.message.slice(0, 120) }; }
     await sleep(env('GT_SLEEP', 2200));
   }
   // 6) Blockchains/assets (Trust Wallet fork) info.json for EVM tokens — rolling, 7d TTL.
@@ -202,6 +214,7 @@ export async function collect({ prev = {}, log = console.error } = {}) {
   const scanDue = [...tokens.values()].filter((t) => t.address && SUPPORTED_CHAINS.includes(t.chain) && !t.stale && now - Date.parse(state.scans[t.id]?.scannedAt || 0) > DAY)
     .sort((a, b) => (trendIds.has(b.id) - trendIds.has(a.id)) || (b.mcap || 0) - (a.mcap || 0) || (b.liq || 0) - (a.liq || 0)).slice(0, scanBudget);
   for (const t of scanDue) {
+    if (overBudget()) { errors.scans = 'time budget'; break; }
     try { const s = await scanToken({ address: t.address, chain: t.chain }); state.scans[t.id] = slimScan(s); } catch (e) { errors[`scan:${t.id}`] = e.message.slice(0, 120); }
     await sleep(800);
   }
@@ -213,7 +226,7 @@ export async function collect({ prev = {}, log = console.error } = {}) {
   state.platforms = Object.fromEntries(Object.entries(state.platforms).filter(([id]) => live.has(id)));
   for (const id of Object.keys(state.firstSeen)) if (!tokens.has(id)) delete state.firstSeen[id];
 
-  return { tokens: [...tokens.values()], trending: [...new Set([...trendIds])], boosted: boosted.map((b) => tokenId(b.chain, /^0x/.test(b.address) ? b.address.toLowerCase() : b.address)), state, errors, counts: { cg: cgRows.length, dex: dexCandidates.size, gtRefreshed: gtDue.length, assetsRefreshed: asDue.length, scansRun: scanDue.length } };
+  return { tokens: [...tokens.values()], trending: [...new Set([...trendIds])], boosted: boosted.map((b) => tokenId(b.chain, /^0x/.test(b.address) ? b.address.toLowerCase() : b.address)), state, errors, counts: { cg: cgRows.length, dex: dexCandidates.size, gtRefreshed: gtDone, assetsRefreshed: asDue.length, scansRun: scanDue.length } };
 }
 
 const SUPPORTED_DS = new Set(['solana', 'ethereum', 'base', 'bsc', 'arbitrum', 'polygon', 'avalanche', 'ton', 'tron', 'blast', 'sonic', 'abstract', 'hyperevm', 'optimism', 'linea', 'mantle', 'cronos', 'pulsechain', 'sui', 'aptos']);
