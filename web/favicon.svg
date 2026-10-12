@@ -1,1 +1,2 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#22d3ee"/><text x="16" y="23" font-family="monospace" font-size="19" font-weight="700" text-anchor="middle" fill="#05070d">M</text></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><circle cx="256" cy="256" r="240" fill="#F5B800"/><circle cx="256" cy="256" r="196" fill="none" stroke="#B37800" stroke-width="24"/>
+<path d="M136 368V160l120 120 120-120v208" fill="none" stroke="#1A1200" stroke-width="56" stroke-linejoin="round" stroke-linecap="round"/></svg>

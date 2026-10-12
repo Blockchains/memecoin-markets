@@ -37,7 +37,11 @@ export function layout(c, p) {
 ${c.gsc ? `<meta name="google-site-verification" content="${esc(c.gsc)}">\n` : ''}<meta name="theme-color" content="#05070d">
 <meta name="mm-root" content="${R || './'}">
 <link rel="manifest" href="${R}manifest.webmanifest">
+<link rel="icon" href="${R}favicon.ico" sizes="48x48">
 <link rel="icon" href="${R}favicon.svg" type="image/svg+xml">
+<link rel="icon" href="${R}favicon-48.png" type="image/png" sizes="48x48">
+<link rel="icon" href="${R}favicon-32.png" type="image/png" sizes="32x32">
+<link rel="apple-touch-icon" href="${R}apple-touch-icon.png" sizes="180x180">
 <link rel="alternate" type="application/json" href="${R}v1/index.json" title="Memecoin Markets JSON API">
 <link rel="stylesheet" href="${R}site.css">
 ${p.head || ''}${p.jsonld ? `<script type="application/ld+json">${JSON.stringify(p.jsonld).replace(/</g, '\\u003c')}</script>\n` : ''}</head>
