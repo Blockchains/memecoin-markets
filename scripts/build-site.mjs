@@ -1,64 +1,126 @@
-// Build the Pages site: static app + SDK as ESM under /lib + live JSON snapshots under /v1.
-// Run by GitHub Actions on push and on a schedule. Snapshots are real upstream data at build time.
-import { cpSync, mkdirSync, rmSync, writeFileSync, readFileSync } from 'node:fs';
+// Build the Pages site: CMC-style memecoin rankings (static HTML per token) + toolkit (/tools/)
+// + SDK as ESM under /lib + JSON API under /v1. Run by GitHub Actions on push and every 30 minutes.
+// Free public data only; rolling caches are carried over from the previously deployed v1/state.json.
+import { cpSync, mkdirSync, rmSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { radar, scanToken, POLICY, LAUNCH_ITEMS } from '../src/index.js';
 import { latestBoosts, topBoosts } from '../src/sources/dexscreener.js';
+import { MEME_CATEGORIES } from '../src/sources/coingecko.js';
+import { collect, slimScan } from './lib/collect.mjs';
+import { buildData, writePages, seoFiles } from './lib/pages.mjs';
+import { layout } from './lib/render.mjs';
 
 const OUT = process.env.OUT || '_site';
-const BASE = 'https://blockchains.github.io/memecoin-markets';
+const PAGES = 'https://blockchains.github.io/memecoin-markets/';
 const OFFLINE = process.env.OFFLINE === '1';
 const pkg = JSON.parse(readFileSync('package.json'));
 const now = new Date().toISOString();
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const t0 = Date.now();
+
+// Canonical host: memecoin.markets once it serves this build (it publishes the same mm-origin.json), else Pages.
+async function detectSite() {
+  if (process.env.SITE_URL) return process.env.SITE_URL.replace(/\/?$/, '/');
+  if (OFFLINE) return PAGES;
+  try { const r = await fetch('https://memecoin.markets/mm-origin.json', { signal: AbortSignal.timeout(8000) }); const d = await r.json(); if (d.repo === 'Blockchains/memecoin-markets') return 'https://memecoin.markets/'; } catch { /* not pointed yet */ }
+  return PAGES;
+}
+const site = await detectSite();
+const c = { site, built: now, gsc: process.env.GSC_VERIFICATION || '' };
+
+let prev = {};
+if (process.env.PREV_STATE_FILE && existsSync(process.env.PREV_STATE_FILE)) prev = JSON.parse(readFileSync(process.env.PREV_STATE_FILE, 'utf8'));
+else if (!OFFLINE) { try { const r = await fetch(PAGES + 'v1/state.json', { signal: AbortSignal.timeout(30000) }); if (r.ok) prev = await r.json(); } catch { /* first build */ } }
 
 rmSync(OUT, { recursive: true, force: true });
-mkdirSync(`${OUT}/v1`, { recursive: true });
+mkdirSync(`${OUT}/v1/token`, { recursive: true });
 cpSync('web', OUT, { recursive: true });
 cpSync('src', `${OUT}/lib`, { recursive: true });
-for (const f of ['llms.txt', 'blocks.json', 'AGENTS.md']) cpSync(f, `${OUT}/${f}`);
+mkdirSync(`${OUT}/vendor`, { recursive: true });
+cpSync('node_modules/lightweight-charts/dist/lightweight-charts.standalone.production.js', `${OUT}/vendor/lightweight-charts.standalone.production.js`);
+cpSync('node_modules/lightweight-charts/LICENSE', `${OUT}/vendor/LIGHTWEIGHT-CHARTS-LICENSE.txt`);
+for (const f of ['blocks.json', 'AGENTS.md']) cpSync(f, `${OUT}/${f}`);
 writeFileSync(`${OUT}/sw.js`, readFileSync(`${OUT}/sw.js`, 'utf8').replace('__BUILD__', now.replace(/\D/g, '').slice(0, 14)));
+writeFileSync(`${OUT}/tools/index.html`, readFileSync(`${OUT}/tools/index.html`, 'utf8').replaceAll('__SITE__', site));
 writeFileSync(`${OUT}/.nojekyll`, '');
-writeFileSync(`${OUT}/robots.txt`, `User-agent: *\nAllow: /\nSitemap: ${BASE}/sitemap.xml\n`);
-writeFileSync(`${OUT}/sitemap.xml`, `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>${BASE}/</loc><lastmod>${now.slice(0, 10)}</lastmod></url></urlset>\n`);
+writeFileSync(`${OUT}/mm-origin.json`, JSON.stringify({ repo: 'Blockchains/memecoin-markets', built: now, canonical: site }));
 
-const meta = { generated_at: now, version: pkg.version, policy: POLICY.id, built_by: 'Blockchain Lab — https://blockchainlab.com', repo: 'https://github.com/Blockchains/memecoin-markets', disclaimer: 'Evidence, not advice. Each check names its upstream source.' };
-const write = (name, data) => writeFileSync(`${OUT}/v1/${name}`, JSON.stringify({ ...meta, ...data }, null, 1));
+const meta = { generated_at: now, version: pkg.version, policy: POLICY.id, site, built_by: 'Blockchain Lab — https://blockchainlab.com', repo: 'https://github.com/Blockchains/memecoin-markets', disclaimer: 'Evidence, not advice. Each figure names its upstream source.', attribution: 'Market data: CoinGecko (public API), DexScreener, GeckoTerminal' };
+const write = (name, data) => { mkdirSync(`${OUT}/v1/${name}`.replace(/\/[^/]+$/, ''), { recursive: true }); writeFileSync(`${OUT}/v1/${name}`, JSON.stringify({ ...meta, ...data })); };
 const errors = {};
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-
 write('policy.json', { policy: POLICY, launch_checklist: LAUNCH_ITEMS });
 
+// ---- toolkit feeds (radar + boost scans) — consumed by the live desk on memecoin.markets ----
 const radars = {};
 for (const chain of ['solana', 'base']) {
-  if (OFFLINE) { radars[chain] = { chain, generatedAt: now, count: 0, rows: [], errors: { offline: 'build ran with OFFLINE=1' } }; }
+  if (OFFLINE) radars[chain] = { chain, generatedAt: now, count: 0, rows: [], errors: { offline: 'build ran with OFFLINE=1' } };
   else try { radars[chain] = await radar({ chain, limit: 60, rugcheck: chain === 'solana' ? 8 : 0 }); } catch (e) { errors[`radar-${chain}`] = String(e.message); radars[chain] = { chain, generatedAt: now, count: 0, rows: [], errors: { radar: String(e.message) } }; }
   write(`radar-${chain}.json`, radars[chain]);
 }
-
-// Full safety scans for what the live desk shows first: latest Solana boosts, then the freshest
-// liquid radar rows. This is the feed memecoin.grok.me can use to resolve its UNRESOLVED rows.
 const scans = [];
 if (!OFFLINE) {
   let boosts = []; let top = [];
   try { boosts = (await latestBoosts()).filter((b) => b.chain === 'solana').map((b) => b.address); } catch (e) { errors.boosts = String(e.message); }
   try { top = (await topBoosts()).filter((b) => b.chain === 'solana').map((b) => b.address); } catch (e) { errors.top_boosts = String(e.message); }
   const fresh = (radars.solana.rows || []).filter((r) => (r.liquidityUsd ?? 0) >= POLICY.deskLiquidityUsd).map((r) => r.address);
-  const targets = [...new Set([...boosts.slice(0, 30), ...top.slice(0, 15), ...fresh.slice(0, 8)])].slice(0, Number(process.env.MAX_SCANS || 50));
-  for (const address of targets) {
-    try { scans.push(await scanToken({ address, chain: 'solana' })); } catch (e) { errors[`scan:${address}`] = String(e.message); }
-    await sleep(1200);
-  }
+  const targets = [...new Set([...boosts.slice(0, 20), ...top.slice(0, 10), ...fresh.slice(0, 6)])].slice(0, Number(process.env.MAX_SCANS || 30));
+  for (const address of targets) { try { scans.push(await scanToken({ address, chain: 'solana' })); } catch (e) { errors[`scan:${address}`] = String(e.message); } await sleep(1000); }
 }
-const slim = (s) => ({ chain: s.chain, address: s.address, verdict: s.verdict, policy: s.policy, token: s.token, market: s.market && { dex: s.market.dex, priceUsd: s.market.priceUsd, liquidityUsd: s.market.liquidityUsd, fdvUsd: s.market.fdvUsd, createdAt: s.market.createdAt, url: s.market.url }, checks: s.checks.map(({ id, status, value, source, hard }) => ({ id, status, value, source, hard: !!hard })), errors: s.errors, scannedAt: s.scannedAt });
-write('scans-solana.json', { count: scans.length, by_address: Object.fromEntries(scans.map((s) => [s.address, slim(s)])) });
+const slimDesk = (s) => ({ ...slimScan(s), market: s.market && { dex: s.market.dex, priceUsd: s.market.priceUsd, liquidityUsd: s.market.liquidityUsd, fdvUsd: s.market.fdvUsd, createdAt: s.market.createdAt, url: s.market.url } });
+write('scans-solana.json', { count: scans.length, by_address: Object.fromEntries(scans.map((s) => [s.address, slimDesk(s)])) });
+
+// ---- rankings product ----
+const col = OFFLINE ? { tokens: prev.tokens || [], trending: prev.trending || [], boosted: prev.boosted || [], state: prev.state || { scans: {} }, errors: { offline: 'OFFLINE=1: reused previous state' }, counts: {} } : await collect({ prev: { ...(prev.state || {}), tokens: prev.tokens } });
+Object.assign(errors, col.errors);
+// desk scans also feed token pages
+for (const s of scans) col.state.scans[`solana:${s.address}`] ||= slimScan(s);
+for (const t of col.tokens) { const s = col.state.scans[t.id]; if (s) t.scan = { verdict: s.verdict, at: s.scannedAt }; }
+let phishingSize = 0; try { phishingSize = prev.phishingSize || 0; } catch { /* */ }
+const tokensPresent = new Set(col.tokens.map((t) => t.cats || []).flat());
+const cats = MEME_CATEGORIES.filter(([s]) => s !== 'meme-token' && tokensPresent.has(s));
+const d = buildData(col.tokens, { built: now, trending: col.trending, boosted: col.boosted, scans: col.state.scans, counts: col.counts, phishingSize: col.state.phishingSize || phishingSize, cats });
+d.chains = Object.entries(d.tokens.filter((t) => t.chain && !t.stale).reduce((a, t) => ((a[t.chain] = (a[t.chain] || 0) + 1), a), {})).filter(([, n]) => n >= 5).sort((a, b) => b[1] - a[1]).map(([ch]) => ch);
+const { urls, tokenCount, pages } = writePages(OUT, c, d);
+urls.push(['tools/', 0.6]);
+
+// Offline + 404 pages
+mkdirSync(`${OUT}/offline`, { recursive: true });
+writeFileSync(`${OUT}/offline/index.html`, layout(c, { path: 'offline/', title: 'Offline — memecoin.markets', description: 'You are offline.', noindex: true, body: '<h1>You are offline</h1><p>Pages you opened before are available offline, along with your <a href="../watchlist/">watchlist</a>, the <a href="../tools/#pnl">UK tax calculator</a> and <a href="../guides/uk-memecoin-tax/">tax guide</a>. Prices will refresh when you reconnect.</p>' }));
+const base404 = new URL(site).pathname; // "/memecoin-markets/" on Pages, "/" on the domain
+writeFileSync(`${OUT}/404.html`, layout(c, { path: '', title: 'Page not found — memecoin.markets', description: 'Not found', noindex: true, body: `<div id="dyn-token" hidden></div><div id="dyn-head"><h1>Page not found</h1><p>Try the <a href="${base404}">rankings</a> or search above.</p></div><section class="card"><div id="chart" class="chart" hidden></div><div id="safety"><p><button id="live-scan" hidden>Run live scan</button></p><div id="live-scan-out"></div></div></section>
+<script>(function(){var m=location.pathname.match(/\\/token\\/([a-z0-9-]+)\\/([A-Za-z0-9_-]{20,90})\\/?$/);if(!m)return;var a=document.getElementById('dyn-token');a.dataset.chain=m[1];a.dataset.addr=m[2];a.hidden=false;var b=document.getElementById('live-scan');b.hidden=false;b.dataset.chain=m[1];b.dataset.addr=m[2];document.getElementById('dyn-head').innerHTML='<h1>Loading '+m[2].slice(0,8)+'…</h1>';})();</script>` }).replace('<meta name="mm-root" content="./">', `<meta name="mm-root" content="${base404}">`).replace(/(href|src)="(?!https?:|#|\/)([^"]*)"/g, (x, k, v) => `${k}="${base404}${v.replace(/^\.\//, '')}"`));
+
+// ---- JSON API ----
+const slimTok = (t) => ({ id: t.id, path: t.path, url: site + t.path, name: t.name, symbol: t.symbol, chain: t.chain, address: t.address, cg: t.cg || null, image: t.image || null, rank: t.rank || null, priceUsd: t.priceUsd ?? null, mcap: t.mcap ?? null, fdv: t.fdv ?? null, vol24: t.vol24 ?? null, liq: t.liq ?? null, ch1h: t.ch1h ?? null, ch24h: t.ch24h ?? null, ch7d: t.ch7d ?? null, createdAt: t.createdAt || null, cats: t.cats || [], holders: t.gt?.holders?.count ?? null, top10Pct: t.gt?.holders?.dist?.top_10 ?? null, verdict: t.scan?.verdict || null, sources: t.sources });
+write('markets.json', { count: d.ranked.length, rows: d.ranked.map(slimTok) });
+write('tokens-index.json', { count: d.tokens.length, fields: ['id', 'path', 'name', 'symbol', 'chain', 'address', 'image', 'priceUsd', 'mcap', 'ch24h', 'vol24', 'liq', 'rank', 'verdict'], tokens: d.tokens.filter((t) => !t.stale || t.rank).map((t) => [t.id, t.path, t.name, t.symbol, t.chain, t.address, t.image || null, t.priceUsd ?? null, t.mcap ?? null, t.ch24h ?? null, t.vol24 ?? null, t.liq ?? null, t.rank || null, t.scan?.verdict || null]) });
+write('trending.json', { rows: d.trendingRows.map(slimTok), boosted_paid: d.boostedRows.map(slimTok) });
+write('new-pairs.json', { rows: d.fresh.map(slimTok) });
+write('gainers.json', { rows: d.gainers.map(slimTok) });
+write('losers.json', { rows: d.losers.map(slimTok) });
+write('categories.json', { categories: cats.map(([slug, name]) => ({ slug, name, url: `${site}category/${slug}/`, ids: d.ranked.filter((t) => (t.cats || []).includes(slug)).map((t) => t.id) })) });
+for (const t of d.tokens) if (t.address) write(`token/${t.chain}/${t.address}.json`, { token: { ...slimTok(t), pools: t.pools || [], links: t.links || [], linkCheck: t.linkCheck || null, holdersDist: t.gt?.holders || null, authorities: t.gt ? { mint: t.gt.mintAuthority, freeze: t.gt.freezeAuthority } : null, ath: t.ath ?? null, athDate: t.athDate || null, spark7d: t.spark || null }, scan: d.scans[t.id] || null });
+// state for the next build (rolling caches)
+writeFileSync(`${OUT}/v1/state.json`, JSON.stringify({ generated_at: now, tokens: col.tokens.map(({ rank, ...t }) => t), trending: col.trending, boosted: col.boosted, state: col.state }));
 
 const endpoints = [
-  ['v1/radar-solana.json', 'Newest Solana pools (GeckoTerminal) + DexScreener profiles/boosts, liquidity, age, 5m txns, RugCheck for liquid rows, quick flags'],
-  ['v1/radar-base.json', 'Same radar for Base'],
-  ['v1/scans-solana.json', 'Full safety scans (mint/freeze, Token-2022, holders, dev history, LP, RugCheck, Jupiter sell route) for the latest + top DexScreener Solana boosts and the freshest liquid pools, keyed by mint'],
+  ['v1/markets.json', 'All ranked memecoins (market cap order): price, mcap, FDV, volume, DEX liquidity, 1h/24h/7d change, holders, top-10 %, safety verdict'],
+  ['v1/tokens-index.json', 'Compact index of every token page (search/watchlist)'],
+  ['v1/token/{chain}/{address}.json', 'One token: market data, pools, links + phishing check, holders distribution, authorities, 7d sparkline and latest safety scan'],
+  ['v1/trending.json', 'GeckoTerminal trending (organic) + DexScreener boosts (paid, labelled)'],
+  ['v1/new-pairs.json', 'Pools created in the last 72h with ≥ $1K liquidity'],
+  ['v1/gainers.json', 'Top 24h gainers (volume/liquidity filtered)'], ['v1/losers.json', 'Top 24h losers (volume/liquidity filtered)'],
+  ['v1/categories.json', 'Meme categories with member token ids'],
+  ['v1/radar-solana.json', 'Newest Solana pools (GeckoTerminal) + DexScreener profiles/boosts with quick flags'], ['v1/radar-base.json', 'Same radar for Base'],
+  ['v1/scans-solana.json', 'Full safety scans for the latest + top DexScreener Solana boosts and the freshest liquid pools, keyed by mint'],
   ['v1/policy.json', `Desk policy ${POLICY.id} thresholds and the launch checklist`],
   ['lib/index.js', 'The SDK as a browser ES module: import { scanToken, radar, ukCgt } from this URL'],
-  ['llms.txt', 'Agent-readable summary'],
-  ['blocks.json', 'Blockchains building-block manifest'],
+  ['sitemap.xml', 'Every indexable page'], ['llms.txt', 'Agent-readable summary'], ['blocks.json', 'Blockchains building-block manifest'],
 ];
-write('index.json', { endpoints: endpoints.map(([path, description]) => ({ path, url: `${BASE}/${path}`, description })), errors });
-console.log(JSON.stringify({ out: OUT, radar: Object.fromEntries(Object.entries(radars).map(([k, v]) => [k, v.count])), scans: scans.length, verdicts: scans.reduce((a, s) => ((a[s.verdict] = (a[s.verdict] || 0) + 1), a), {}), errors }, null, 1));
+write('index.json', { endpoints: endpoints.map(([path, description]) => ({ path, url: `${site}${path}`, description })), counts: { ranked: d.ranked.length, tokenPages: tokenCount, rankingPages: pages, sitemapUrls: urls.length + 0 }, errors });
+seoFiles(OUT, c, urls, d);
+
+// Full-text search index (Pagefind, MIT) over the generated HTML.
+if (process.env.PAGEFIND !== '0') { try { execFileSync('npx', ['-y', 'pagefind', '--site', OUT, '--glob', '{guides,category,chain,methodology,about}/**/*.html'], { stdio: 'ignore', timeout: 120000 }); } catch (e) { errors.pagefind = String(e.message).slice(0, 120); } }
+
+console.log(JSON.stringify({ out: OUT, site, ms: Date.now() - t0, ranked: d.ranked.length, tokenPages: tokenCount, sitemap: urls.length, trending: d.trendingRows.length, fresh: d.fresh.length, gainers: d.gainers.length, scans: Object.keys(col.state.scans).length, deskScans: scans.length, counts: col.counts, errors }, null, 1));

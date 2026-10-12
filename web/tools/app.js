@@ -1,4 +1,4 @@
-import { scanToken, radar, POLICY, ukCgt, fifoPnl, parseTradesCsv, toRotkiCsv, evaluateChecklist, valuePortfolio, walletHoldings, isSolanaAddress } from './lib/index.js';
+import { scanToken, radar, POLICY, ukCgt, fifoPnl, parseTradesCsv, toRotkiCsv, evaluateChecklist, valuePortfolio, walletHoldings, isSolanaAddress } from '../lib/index.js';
 
 const $ = (s) => document.querySelector(s);
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -36,6 +36,7 @@ function renderScan(s) {
     s.chain !== 'solana' && `<a href="https://honeypot.is/?address=${esc(s.address)}" target="_blank" rel="noopener">honeypot.is</a>`,
     s.chain !== 'solana' && `<a href="https://blockchains.github.io/approvals/" target="_blank" rel="noopener">Check approvals (Blockchain Lab)</a>`,
     `<a href="#checklist?address=${esc(s.address)}">Launch checklist</a>`,
+    `<a href="../token/${esc(s.chain)}/${esc(s.chain === 'solana' ? s.address : s.address.toLowerCase())}/">Token page</a>`,
   ].filter(Boolean).join(' · ');
   const errs = Object.entries(s.errors || {});
   return `<div class="card"><div class="verdict v-${esc(s.verdict)}" data-verdict="${esc(s.verdict)}">${esc(s.verdict)}</div>
@@ -66,7 +67,7 @@ function renderRadar(r, label) {
 async function loadRadarSnapshot() {
   radarLoaded = true;
   const chain = $('#radar-chain').value;
-  try { const r = await (await fetch(`v1/radar-${chain}.json`)).json(); renderRadar(r, 'Snapshot (Actions)'); }
+  try { const r = await (await fetch(`../v1/radar-${chain}.json`)).json(); renderRadar(r, 'Snapshot (Actions)'); }
   catch { $('#radar-out').innerHTML = '<p class="muted">No snapshot for this chain yet — press Live refresh.</p>'; }
 }
 $('#radar-chain').addEventListener('change', loadRadarSnapshot);
@@ -138,8 +139,8 @@ $('#pf-refresh').addEventListener('click', () => renderPortfolio(true));
 
 // ---------- API tab ----------
 async function renderApi() {
-  try { const idx = await (await fetch('v1/index.json')).json(); $('#api-list').innerHTML = idx.endpoints.map((e) => `<li><a href="${esc(e.url)}">${esc(e.path)}</a> — ${esc(e.description)}</li>`).join(''); } catch { /* offline first visit */ }
+  try { const idx = await (await fetch('../v1/index.json')).json(); $('#api-list').innerHTML = idx.endpoints.map((e) => `<li><a href="${esc(e.url)}">${esc(e.path)}</a> — ${esc(e.description)}</li>`).join(''); } catch { /* offline first visit */ }
 }
 
-if ('serviceWorker' in navigator && (location.protocol === 'https:' || ['localhost', '127.0.0.1'].includes(location.hostname))) navigator.serviceWorker.register('sw.js');
+if ('serviceWorker' in navigator && (location.protocol === 'https:' || ['localhost', '127.0.0.1'].includes(location.hostname))) navigator.serviceWorker.register('../sw.js', { scope: '../' });
 route();

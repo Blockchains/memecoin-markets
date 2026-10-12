@@ -1,7 +1,7 @@
-name: Pages (app + live JSON snapshots)
+name: Pages (rankings + token pages + JSON API)
 on:
   push: { branches: [main] }
-  schedule: [{ cron: "*/30 * * * *" }]
+  schedule: [{ cron: "7,37 * * * *" }]
   workflow_dispatch:
 permissions:
   contents: read
@@ -11,12 +11,27 @@ concurrency: { group: pages, cancel-in-progress: false }
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
       - run: npm ci
-      - run: node scripts/build-site.mjs || (sleep 30; node scripts/build-site.mjs)
+      - name: Build (free public data; rolling caches from the live v1/state.json)
+        env:
+          SITE_URL: ${{ vars.SITE_URL }}
+          GSC_VERIFICATION: ${{ vars.GSC_VERIFICATION }}
+        run: node scripts/build-site.mjs || (sleep 60; node scripts/build-site.mjs)
+      - name: Sanity — refuse to deploy an empty or broken build
+        run: |
+          python3 - <<'PY'
+          import json,os
+          d=json.load(open('_site/v1/markets.json')); n=d['count']
+          assert n>=300, f'only {n} ranked tokens'
+          s=open('_site/sitemap.xml').read(); assert s.count('/token/')>=300, 'sitemap too small'
+          assert os.path.exists('_site/token/solana/DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263/index.html')
+          print('ranked',n,'sitemap token urls',s.count('/token/'))
+          PY
       - uses: actions/upload-pages-artifact@v3
         with: { path: _site }
   deploy:
@@ -34,15 +49,19 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
-      - name: Live endpoints respond with CORS and fresh data
+      - name: Live endpoints, token pages and SEO files
         run: |
           set -e
           B=https://blockchains.github.io/memecoin-markets
           sleep 20
-          for f in v1/index.json v1/radar-solana.json v1/scans-solana.json v1/policy.json lib/index.js llms.txt; do
+          for f in v1/index.json v1/markets.json v1/tokens-index.json v1/radar-solana.json v1/scans-solana.json lib/index.js llms.txt robots.txt sitemap.xml; do
             curl -sSf --retry 8 --retry-all-errors --retry-delay 10 -D /tmp/h "$B/$f" -o /tmp/b; grep -qi 'access-control-allow-origin: \*' /tmp/h; echo "ok $f $(wc -c </tmp/b) bytes"
           done
-          curl -sSf "$B/v1/radar-solana.json" | python3 -c "import json,sys;d=json.load(sys.stdin);assert d['count']>0,d;print('radar rows',d['count'],d['generated_at'])"
+          for p in "" token/solana/DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263/ trending/ new/ gainers/ guides/uk-memecoin-tax/ tools/; do
+            code=$(curl -s -o /tmp/p -w '%{http_code}' --retry 5 --retry-all-errors "$B/$p"); grep -q '<link rel="canonical"' /tmp/p; echo "$code /$p"; test "$code" = 200
+          done
+          curl -sSf "$B/sitemap.xml" | grep -o '<loc>[^<]*/token/[^<]*</loc>' | sed 's/<[^>]*>//g' | shuf -n 10 --random-source=/dev/urandom > /tmp/sample
+          while read u; do code=$(curl -s -o /dev/null -w '%{http_code}' --retry 3 "$u"); echo "$code $u"; test "$code" = 200; done < /tmp/sample
       - run: npm ci && npx -y playwright@1.64.0 install --with-deps chromium
       - name: Browser e2e against live Pages
         run: E2E_URL=https://blockchains.github.io/memecoin-markets/ npm run test:e2e || (sleep 45; E2E_URL=https://blockchains.github.io/memecoin-markets/ npm run test:e2e)

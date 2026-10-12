@@ -23,6 +23,9 @@ export function normalisePair(p) {
     priceChange: p.priceChange || {},
     createdAt: p.pairCreatedAt ? new Date(p.pairCreatedAt).toISOString() : null,
     labels: p.labels || [],
+    image: p.info?.imageUrl || null,
+    volume: p.volume || {},
+    links: { websites: (p.info?.websites || []).map((w) => w.url).filter(Boolean), socials: (p.info?.socials || []).map((x) => ({ type: x.type, url: x.url })).filter((x) => x.url) },
     socials: [...(p.info?.socials || []).map((s) => s.url || s.type), ...(p.info?.websites || []).map((w) => w.url)].filter(Boolean),
   };
 }
@@ -56,4 +59,10 @@ export async function topBoosts(opts) {
 export async function latestProfiles(opts) {
   const data = await fetchJson('dexscreener', `${BASE}/token-profiles/latest/v1`, opts);
   return (data || []).map((b) => ({ chain: b.chainId, address: b.tokenAddress, url: b.url, description: b.description || null, links: (b.links || []).map((l) => l.url) }));
+}
+
+/** Every pool for one token (DexScreener /token-pairs/v1), sorted by liquidity desc. */
+export async function pairsForToken(chain, address, opts) {
+  const data = await fetchJson('dexscreener', `${BASE}/token-pairs/v1/${encodeURIComponent(chain)}/${address}`, opts);
+  return (Array.isArray(data) ? data : data?.pairs || []).map(normalisePair).sort((a, b) => (b.liquidityUsd || 0) - (a.liquidityUsd || 0));
 }

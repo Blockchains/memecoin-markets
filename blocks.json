@@ -3,41 +3,188 @@
   "schema_version": "1.0",
   "name": "memecoin-markets",
   "repo": "Blockchains/memecoin-markets",
-  "summary": "Memecoin safety + desk toolkit for memecoin.markets: token safety scanner (Solana mint/freeze/Token-2022, EVM honeypot/tax/owner), new-pair radar, UK CGT + FIFO PnL with rotki export, launch checklist, portfolio. Zero-dep SDK, MCP, static JSON API, Pages app.",
-  "kind": ["library", "mcp-server", "http-api", "dataset", "web-app"],
+  "summary": "CoinMarketCap-style memecoin rankings + per-token SEO pages (holders, LP, charts, rug/honeypot scan) for memecoin.markets, plus safety scanner, new-pair radar, UK CGT/FIFO PnL, launch checklist, portfolio. Zero-dep SDK, MCP, static JSON API, Pages app. Free public data, no keys.",
+  "kind": [
+    "library",
+    "mcp-server",
+    "http-api",
+    "dataset",
+    "web-app"
+  ],
   "stability": "beta",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "license": "MIT",
   "homepage": "https://blockchains.github.io/memecoin-markets/",
   "entrypoints": [
-    { "type": "git", "name": "memecoin-markets", "ref": "src/index.js", "install": "npm i github:Blockchains/memecoin-markets", "usage": "import { scanToken } from 'memecoin-markets'", "exports": ["scanToken", "radar", "ukCgt", "fifoPnl", "toRotkiCsv", "parseTradesCsv", "evaluateChecklist", "valuePortfolio", "walletHoldings", "POLICY"] },
-    { "type": "browser-script", "name": "SDK ES module", "ref": "https://blockchains.github.io/memecoin-markets/lib/index.js", "usage": "import { scanToken } from 'https://blockchains.github.io/memecoin-markets/lib/index.js'" },
-    { "type": "mcp-stdio", "name": "memecoin-mcp", "ref": "bin/memecoin-mcp.js", "install": "npx -y github:Blockchains/memecoin-markets memecoin-mcp", "exports": ["memecoin_scan_token", "memecoin_new_pairs", "memecoin_launch_checklist", "memecoin_jupiter_quote", "memecoin_uk_cgt", "memecoin_fifo_pnl", "memecoin_rotki_csv", "memecoin_portfolio"] },
-    { "type": "http", "name": "radar-solana", "ref": "https://blockchains.github.io/memecoin-markets/v1/radar-solana.json" },
-    { "type": "http", "name": "scans-solana", "ref": "https://blockchains.github.io/memecoin-markets/v1/scans-solana.json" },
-    { "type": "http", "name": "policy", "ref": "https://blockchains.github.io/memecoin-markets/v1/policy.json" },
-    { "type": "web", "name": "Pages app", "ref": "https://blockchains.github.io/memecoin-markets/" },
-    { "type": "file", "name": "Telegram bot (grammY) example", "ref": "examples/telegram-bot/bot.js", "usage": "TELEGRAM_BOT_TOKEN=... node examples/telegram-bot/bot.js" }
+    {
+      "type": "git",
+      "name": "memecoin-markets",
+      "ref": "src/index.js",
+      "install": "npm i github:Blockchains/memecoin-markets",
+      "usage": "import { scanToken } from 'memecoin-markets'",
+      "exports": [
+        "scanToken",
+        "radar",
+        "ukCgt",
+        "fifoPnl",
+        "toRotkiCsv",
+        "parseTradesCsv",
+        "evaluateChecklist",
+        "valuePortfolio",
+        "walletHoldings",
+        "POLICY"
+      ]
+    },
+    {
+      "type": "browser-script",
+      "name": "SDK ES module",
+      "ref": "https://blockchains.github.io/memecoin-markets/lib/index.js",
+      "usage": "import { scanToken } from 'https://blockchains.github.io/memecoin-markets/lib/index.js'"
+    },
+    {
+      "type": "mcp-stdio",
+      "name": "memecoin-mcp",
+      "ref": "bin/memecoin-mcp.js",
+      "install": "npx -y github:Blockchains/memecoin-markets memecoin-mcp",
+      "exports": [
+        "memecoin_scan_token",
+        "memecoin_new_pairs",
+        "memecoin_launch_checklist",
+        "memecoin_jupiter_quote",
+        "memecoin_uk_cgt",
+        "memecoin_fifo_pnl",
+        "memecoin_rotki_csv",
+        "memecoin_portfolio"
+      ]
+    },
+    {
+      "type": "http",
+      "name": "markets",
+      "ref": "https://blockchains.github.io/memecoin-markets/v1/markets.json"
+    },
+    {
+      "type": "http",
+      "name": "token",
+      "ref": "https://blockchains.github.io/memecoin-markets/v1/token/{chain}/{address}.json"
+    },
+    {
+      "type": "http",
+      "name": "radar-solana",
+      "ref": "https://blockchains.github.io/memecoin-markets/v1/radar-solana.json"
+    },
+    {
+      "type": "http",
+      "name": "scans-solana",
+      "ref": "https://blockchains.github.io/memecoin-markets/v1/scans-solana.json"
+    },
+    {
+      "type": "http",
+      "name": "policy",
+      "ref": "https://blockchains.github.io/memecoin-markets/v1/policy.json"
+    },
+    {
+      "type": "web",
+      "name": "Pages app",
+      "ref": "https://blockchains.github.io/memecoin-markets/"
+    },
+    {
+      "type": "file",
+      "name": "Telegram bot (grammY) example",
+      "ref": "examples/telegram-bot/bot.js",
+      "usage": "TELEGRAM_BOT_TOKEN=... node examples/telegram-bot/bot.js"
+    }
   ],
   "inputs": [
-    { "name": "address", "type": "string", "description": "Solana mint or EVM token address" },
-    { "name": "chain", "type": "string", "description": "solana | ethereum | base | bsc | arbitrum | polygon" },
-    { "name": "trades", "type": "array", "description": "{time, side, asset, qty, total(GBP), fee?} for PnL/CGT" }
+    {
+      "name": "address",
+      "type": "string",
+      "description": "Solana mint or EVM token address"
+    },
+    {
+      "name": "chain",
+      "type": "string",
+      "description": "solana | ethereum | base | bsc | arbitrum | polygon"
+    },
+    {
+      "name": "trades",
+      "type": "array",
+      "description": "{time, side, asset, qty, total(GBP), fee?} for PnL/CGT"
+    }
   ],
   "outputs": [
-    { "name": "scan", "type": "object", "description": "verdict FAIL/INCOMPLETE/DESK_PASS/CLEAR with per-check status, value and source" },
-    { "name": "radar", "type": "object", "description": "newest pairs with liquidity, age, txns and flags" },
-    { "name": "cgt", "type": "object", "description": "UK disposals (same-day, 30-day, s104) and tax-year totals" }
+    {
+      "name": "scan",
+      "type": "object",
+      "description": "verdict FAIL/INCOMPLETE/DESK_PASS/CLEAR with per-check status, value and source"
+    },
+    {
+      "name": "radar",
+      "type": "object",
+      "description": "newest pairs with liquidity, age, txns and flags"
+    },
+    {
+      "name": "cgt",
+      "type": "object",
+      "description": "UK disposals (same-day, 30-day, s104) and tax-year totals"
+    }
   ],
-  "deps": ["node>=20 (or any modern browser)"],
+  "deps": [
+    "node>=20 (or any modern browser)"
+  ],
   "compatible_with": [
-    { "repo": "Blockchains/blockchainlab-api", "how": "rpc-health dataset picks the Solana RPC" },
-    { "repo": "Blockchains/onetouchswitch-bridge", "how": "Chainlink GBP/USD for portfolio values in GBP" },
-    { "repo": "Blockchains/rotki", "how": "PnL exports rotki generic-trades CSV; live contract test against the fork's importer" },
-    { "repo": "Blockchains/blockchainlab-mcp", "how": "run side by side; blockchainlab-mcp adds approvals, tx decoding and MEV checks" },
-    { "repo": "Blockchains/blockchainlab-tools", "how": "scanner links to approvals/revoke for EVM tokens" },
-    { "repo": "Blockchains/solana-intel", "how": "same policy-v1.1 bars as the paper-mode desk" }
+    {
+      "repo": "Blockchains/blockchainlab-api",
+      "how": "rpc-health dataset picks the Solana RPC"
+    },
+    {
+      "repo": "Blockchains/onetouchswitch-bridge",
+      "how": "Chainlink GBP/USD for portfolio values in GBP"
+    },
+    {
+      "repo": "Blockchains/rotki",
+      "how": "PnL exports rotki generic-trades CSV; live contract test against the fork's importer"
+    },
+    {
+      "repo": "Blockchains/blockchainlab-mcp",
+      "how": "run side by side; blockchainlab-mcp adds approvals, tx decoding and MEV checks"
+    },
+    {
+      "repo": "Blockchains/blockchainlab-tools",
+      "how": "scanner links to approvals/revoke for EVM tokens"
+    },
+    {
+      "repo": "Blockchains/solana-intel",
+      "how": "same policy-v1.1 bars as the paper-mode desk"
+    },
+    {
+      "repo": "Blockchains/web3-defi-honeypot-and-slippage-checker",
+      "how": "fork; its honeyCheck contracts power the on-chain buy/sell simulation (src/sources/honeysim.js)"
+    },
+    {
+      "repo": "Blockchains/phishing",
+      "how": "fork; deny-list checks every token website/social link"
+    },
+    {
+      "repo": "Blockchains/assets",
+      "how": "fork; EVM token socials/website fallback"
+    },
+    {
+      "repo": "Blockchains/token-list",
+      "how": "fork; Solana legacy registry logos/socials"
+    }
   ],
-  "tests": { "command": "npm test && npm run test:e2e", "ci": ".github/workflows/ci.yml", "network": true },
-  "docs": { "readme": "README.md", "agents": "AGENTS.md", "llms": "llms.txt", "extra": ["docs/INTEGRATION.md", "docs/REPOS.md"] }
+  "tests": {
+    "command": "npm test && npm run test:e2e",
+    "ci": ".github/workflows/ci.yml",
+    "network": true
+  },
+  "docs": {
+    "readme": "README.md",
+    "agents": "AGENTS.md",
+    "llms": "llms.txt",
+    "extra": [
+      "docs/INTEGRATION.md",
+      "docs/REPOS.md"
+    ]
+  }
 }

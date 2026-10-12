@@ -39,5 +39,17 @@ jobs:
         with: { node-version: 22, cache: npm }
       - run: npm ci
       - run: npx -y playwright@1.64.0 install --with-deps chromium
-      - run: MAX_SCANS=5 node scripts/build-site.mjs
+      - name: Build with small budgets (reuses the live rolling state)
+        run: node scripts/build-site.mjs
+        env: { MAX_SCANS: 5, CG_PAGES: 1, CG_CATS_PER_BUILD: 2, GT_BUDGET: 5, SCAN_BUDGET: 3, POOLS_BUDGET: 20, ASSETS_BUDGET: 10, PAGEFIND: 1 }
       - run: npm run test:e2e || (sleep 30; npm run test:e2e)
+  freshness:
+    name: Live rankings are fresh (scheduled Pages rebuilds working)
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          curl -sSf https://blockchains.github.io/memecoin-markets/v1/markets.json | python3 -c "
+          import json,sys,datetime as D
+          d=json.load(sys.stdin); age=(D.datetime.now(D.timezone.utc)-D.datetime.fromisoformat(d['generated_at'].replace('Z','+00:00'))).total_seconds()/60
+          print('ranked',d['count'],'age_min',round(age)); assert d['count']>=300 and age<120"

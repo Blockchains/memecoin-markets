@@ -4,6 +4,7 @@ import { tokenPairs } from './sources/dexscreener.js';
 import { rugcheckSummary } from './sources/rugcheck.js';
 import { goplusSolana, goplusEvm, EVM_CHAIN_ID } from './sources/goplus.js';
 import { honeypotIs } from './sources/honeypot.js';
+import { honeySim, HONEY_CHAINS } from './sources/honeysim.js';
 import { tokenInfo, sellProbe } from './sources/jupiter.js';
 import { getMint } from './sources/solana-rpc.js';
 
@@ -141,13 +142,15 @@ async function scanSolana(mint, input) {
 }
 
 async function scanEvm(chain, address, input) {
-  const [ds, hp, gp] = await Promise.all([
+  const [ds, hp, gp, hs] = await Promise.all([
     settle(tokenPairs(chain, [address])),
     settle(honeypotIs(chain, address)),
     settle(goplusEvm(chain, address)),
+    HONEY_CHAINS[chain] && !(input.skip || []).includes('honeysim') ? settle(honeySim(chain, address)) : Promise.resolve({ ok: true, value: null }),
   ]);
   const errors = {};
-  for (const [k, v] of Object.entries({ dexscreener: ds, 'honeypot.is': hp, goplus: gp })) if (!v.ok) errors[k] = v.error;
+  for (const [k, v] of Object.entries({ dexscreener: ds, 'honeypot.is': hp, goplus: gp, honeysim: hs })) if (!v.ok) errors[k] = v.error;
+  const sim = hs.ok ? hs.value : null;
   const lc = address.toLowerCase();
   const pairs = ds.ok ? ds.value.filter((p) => p.base.address?.toLowerCase() === lc || p.quote.address?.toLowerCase() === lc) : [];
   const top = pairs[0] || null;
@@ -160,6 +163,10 @@ async function scanEvm(chain, address, input) {
   const gpFlag = g?.honeypot ?? null;
   const isHp = hpFlag === true || gpFlag === true;
   checks.push(hard(check('honeypot', 'Not a honeypot (buy+sell simulated)', hpFlag == null && gpFlag == null ? 'unknown' : isHp ? 'fail' : 'pass', h?.reason || (isHp ? 'flagged' : 'sell simulated ok'), [h && 'honeypot.is', g && 'goplus'].filter(Boolean).join('+'))));
+  if (sim) {
+    // Independent on-chain check (Blockchains fork of valamidev honeyCheck). A revert can also mean "no v2 pair", so it is a warning, not a fail.
+    checks.push(check('onchain_sim', `On-chain buy→sell simulation (${sim.dex})`, !sim.simulated ? 'warn' : sim.honeypot ? 'fail' : Math.max(sim.buyTaxPct, sim.sellTaxPct - 0.7) > POLICY.maxTaxPct ? 'fail' : 'pass', sim.simulated ? `round trip −${sim.roundTripLossPct}% (incl. LP fees) · buy tax ${sim.buyTaxPct}%` : `reverted: ${sim.error}`, 'honeysim (eth_call)', 'Simulated in one read-only eth_call; nothing is signed or sent.'));
+  }
   const buyTax = h?.buyTaxPct ?? g?.buyTaxPct ?? null;
   const sellTax = h?.sellTaxPct ?? g?.sellTaxPct ?? null;
   const tax = Math.max(buyTax ?? 0, sellTax ?? 0);
@@ -181,6 +188,6 @@ async function scanEvm(chain, address, input) {
   return {
     token: { name: top?.base.name || null, symbol: top?.base.symbol || null, holders: g?.holderCount ?? null },
     market: top ? { dex: top.dex, pair: top.pair, url: top.url, priceUsd: top.priceUsd, liquidityUsd: top.liquidityUsd, fdvUsd: top.fdvUsd, volume24hUsd: top.volume24hUsd, txns5m: top.txns5m, createdAt: top.createdAt, socials: top.socials, pairs: pairs.length } : null,
-    checks, errors, sources: ['dexscreener', 'honeypot.is', 'goplus'],
+    checks, errors, sources: ['dexscreener', 'honeypot.is', 'goplus', ...(sim ? ['honeysim'] : [])],
   };
 }

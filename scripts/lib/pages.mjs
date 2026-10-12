@@ -1,0 +1,151 @@
+// Listing pages, hubs, guides, sitemap, robots, llms.txt for the rankings product.
+import { mkdirSync, writeFileSync, readFileSync } from 'node:fs';
+import { dirname } from 'node:path';
+import { layout, table, itemList, crumbsLd, website, org, esc, usd, num, dateLong, chainName, tokenLabel, logo, price, pct, age } from './render.mjs';
+import { tokenPage, indexable } from './token-page.mjs';
+import { GUIDES, guidePage } from './guides.mjs';
+import { MEME_CATEGORIES } from '../../src/sources/coingecko.js';
+
+const CAT = Object.fromEntries(MEME_CATEGORIES);
+const PER = 100;
+
+export function buildData(tokens, extra) {
+  const live = tokens.filter((t) => !t.stale);
+  // Market caps that no market supports (tiny volume AND tiny liquidity vs. mcap) are not ranked.
+  const suspicious = (t) => (t.mcap || 0) > 5e6 && (t.vol24 || 0) < t.mcap * 1e-4 && (t.liq || 0) < t.mcap * 1e-4;
+  for (const t of tokens) t.suspicious = suspicious(t) || undefined;
+  const solid = (t) => !t.suspicious && (t.cg || (t.liq || 0) >= 10000);
+  const ranked = live.filter((t) => (t.mcap || 0) > 0 && solid(t)).sort((a, b) => b.mcap - a.mcap);
+  ranked.forEach((t, i) => (t.rank = i + 1));
+  const byId = new Map(tokens.map((t) => [t.id, t]));
+  const liquidEnough = (t) => solid(t) && (t.vol24 || 0) >= 50000 && ((t.liq || 0) >= 25000 || (t.cg && !t.address && (t.mcap || 0) >= 1e6)) && (t.cg || (t.createdAt && Date.now() - Date.parse(t.createdAt) > 36 * 36e5));
+  return {
+    ...extra, tokens, byId, ranked,
+    volume: live.filter((t) => t.vol24 && solid(t) && (t.cg || (t.liq || 0) >= 25000)).sort((a, b) => b.vol24 - a.vol24).slice(0, 200),
+    liquidity: live.filter((t) => t.liq && !t.suspicious).sort((a, b) => b.liq - a.liq).slice(0, 200),
+    gainers: live.filter((t) => t.ch24h != null && liquidEnough(t)).sort((a, b) => b.ch24h - a.ch24h).slice(0, 100),
+    losers: live.filter((t) => t.ch24h != null && liquidEnough(t)).sort((a, b) => a.ch24h - b.ch24h).slice(0, 100),
+    trendingRows: extra.trending.map((id) => byId.get(id)).filter((t) => t && !t.stale && (t.liq || 0) >= 5000).slice(0, 100),
+    boostedRows: [...new Set(extra.boosted)].map((id) => byId.get(id)).filter((t) => t && !t.stale).slice(0, 50),
+    fresh: live.filter((t) => t.createdAt && Date.now() - Date.parse(t.createdAt) < 72 * 36e5 && (t.liq || 0) >= 1000).sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)).slice(0, 150),
+  };
+}
+
+const slugOf = (t) => (t.cg || `${(t.symbol || 'token').toLowerCase()}-${(t.address || '').slice(0, 6).toLowerCase()}`).replace(/[^a-z0-9-]/g, '');
+
+export function writePages(OUT, c, d) {
+  const urls = []; // [path, priority, indexable]
+  const put = (path, html, { priority = 0.6, index = true } = {}) => {
+    const f = `${OUT}/${path}index.html`; mkdirSync(dirname(f), { recursive: true }); writeFileSync(f, html);
+    if (index) urls.push([path, priority]);
+  };
+  const R = (path) => '../'.repeat(path.split('/').filter(Boolean).length);
+  const statsBar = () => {
+    const mc = d.ranked.reduce((a, t) => a + (t.mcap || 0), 0); const vol = d.ranked.reduce((a, t) => a + (t.vol24 || 0), 0);
+    const btc = d.ranked[0];
+    return `<dl class="glob"><div><dt>Memecoins ranked</dt><dd>${num(d.ranked.length)}</dd></div><div><dt>Total market cap</dt><dd>${usd(mc)}</dd></div><div><dt>24h volume</dt><dd>${usd(vol)}</dd></div><div><dt>${esc(btc?.symbol || '')} dominance</dt><dd>${btc ? ((btc.mcap / mc) * 100).toFixed(1) + '%' : '—'}</dd></div><div><dt>New pairs (72h)</dt><dd>${num(d.fresh.length)}</dd></div><div><dt>Updated</dt><dd>${esc(new Date(c.built).toISOString().slice(11, 16))} UTC</dd></div></dl>`;
+  };
+  const tabs = (cur) => `<nav class="tabs" aria-label="Rankings">${[['', 'Market cap'], ['volume/', 'Volume'], ['liquidity/', 'Liquidity'], ['gainers/', 'Gainers'], ['losers/', 'Losers'], ['trending/', 'Trending'], ['new/', 'New pairs']].map(([h, l]) => `<a href="${R(cur)}${h}"${h === cur ? ' aria-current="page"' : ''}>${l}</a>`).join('')}</nav>`;
+  const strip = (title, href, rows, cur, f) => `<section class="strip"><h2><a href="${R(cur)}${href}">${title} →</a></h2><ol>${rows.slice(0, 5).map((t) => `<li><a href="${R(cur)}${t.path}">${logo(t)}<span>${esc(t.symbol || '?')}</span></a> ${f(t)}</li>`).join('')}</ol></section>`;
+
+  // Home + pagination
+  const pages = Math.max(1, Math.ceil(d.ranked.length / PER));
+  for (let p = 1; p <= pages; p++) {
+    const path = p === 1 ? '' : `page/${p}/`;
+    const rows = d.ranked.slice((p - 1) * PER, p * PER);
+    const pager = `<nav class="pager" aria-label="Pages">${Array.from({ length: pages }, (_, i) => i + 1).map((i) => (i === p ? `<span aria-current="page">${i}</span>` : `<a href="${R(path)}${i === 1 ? '' : `page/${i}/`}">${i}</a>`)).join(' ')}</nav>`;
+    const title = p === 1 ? 'Memecoin prices, market cap & safety rankings today | memecoin.markets' : `Memecoin rankings by market cap — page ${p} (#${(p - 1) * PER + 1}–${(p - 1) * PER + rows.length})`;
+    const description = p === 1 ? `Live rankings of ${num(d.ranked.length)} memecoins by market cap, volume and DEX liquidity across Solana, Base, Ethereum and BNB Chain — with rug and honeypot scans, new pairs, trending tokens and gainers. Free, no sign-up.` : `Memecoins ranked #${(p - 1) * PER + 1} to #${(p - 1) * PER + rows.length} by market cap, with price, 24h change, volume, liquidity and safety scan results.`;
+    const body = `${p === 1 ? `<h1>Memecoin prices by market cap</h1><p class="lede">Every memecoin with a real market — ranked by market cap, with DEX liquidity and a safety scan. Data from CoinGecko, DexScreener and GeckoTerminal, refreshed every 30 minutes; prices update live in your browser.</p>${statsBar()}<div class="strips">${strip('Trending', 'trending/', d.trendingRows, path, (t) => pct(t.ch24h))}${strip('Top gainers 24h', 'gainers/', d.gainers, path, (t) => pct(t.ch24h))}${strip('New pairs', 'new/', d.fresh, path, (t) => `<span class="muted small">${age(t.createdAt)}</span>`)}</div>` : `<h1>Memecoin rankings — page ${p}</h1>`}
+${tabs(p === 1 ? '' : path)}${table(rows, R(path), { start: (p - 1) * PER + 1 })}${pager}
+${p === 1 ? `<section class="hub"><h2>Explore</h2><p>By chain: ${d.chains.map((ch) => `<a href="chain/${ch}/">${esc(chainName(ch))}</a>`).join(' · ')}</p><p>By category: ${d.cats.map(([s, n]) => `<a href="category/${s}/">${esc(n)}</a>`).join(' · ')}</p><p>Guides: ${GUIDES.slice(0, 6).map((g) => `<a href="guides/${g.slug}/">${esc(g.title(d).split(':')[0].replace(/\s*\(.*\)/, ''))}</a>`).join(' · ')}</p></section>` : ''}`;
+    put(path, layout(c, { path, title, description, body, nav: p === 1 ? '' : null, head: p === 1 ? `<script>if(/^#(scan|radar|pnl|checklist|portfolio|api)([?]|$)/.test(location.hash))location.replace('tools/'+location.hash)</script>\n` : '', jsonld: { '@context': 'https://schema.org', '@graph': [...(p === 1 ? [website(c), org(c)] : []), { '@type': 'CollectionPage', '@id': c.site + path, url: c.site + path, name: title, isPartOf: { '@id': c.site + '#website' }, mainEntity: itemList(c, rows, title) }] } }), { priority: p === 1 ? 1 : 0.5 });
+  }
+
+  // Ranking views
+  const view = (path, h1, title, description, rows, cols, intro, navKey) => {
+    const body = `<h1>${h1}</h1><p class="lede">${intro}</p>${tabs(path)}${rows.length ? table(rows, R(path), { cols }) : '<p class="muted">Nothing passed the filters in this refresh.</p>'}`;
+    put(path, layout(c, { path, title, description, body, nav: navKey, crumbs: [['', 'Memecoins'], [path, h1]], jsonld: { '@context': 'https://schema.org', '@graph': [{ '@type': 'CollectionPage', '@id': c.site + path, url: c.site + path, name: title, mainEntity: itemList(c, rows, h1) }, crumbsLd(c, [['', 'Memecoins'], [path, h1]])] } }), { priority: 0.8 });
+  };
+  view('volume/', 'Memecoins by 24h trading volume', 'Most traded memecoins today — 24h volume rankings', 'Memecoins ranked by 24-hour trading volume, with price change, market cap and DEX liquidity. Updated every 30 minutes.', d.volume, ['rank', 'name', 'price', 'ch24h', 'vol24', 'mcap', 'liq', 'spark'], 'Ranked by 24h volume (CoinGecko across all venues where listed, otherwise DEX volume from DexScreener).', null);
+  view('liquidity/', 'Memecoins by DEX liquidity', 'Most liquid memecoins — on-chain DEX liquidity rankings', 'Memecoins ranked by total on-chain DEX pool liquidity: how much you can trade before the price moves. Updated every 30 minutes.', d.liquidity, ['rank', 'name', 'price', 'ch24h', 'liq', 'vol24', 'mcap'], 'Total liquidity across DEX pools where the token is the base asset (DexScreener). Centralised-exchange depth is not included.', null);
+  view('gainers/', 'Top memecoin gainers (24h)', 'Top memecoin gainers today — biggest 24h price increases', 'Memecoins with the biggest 24-hour price gains, filtered to tokens with at least $50K volume and real liquidity so dust pairs do not dominate.', d.gainers, ['rank', 'name', 'price', 'ch24h', 'ch7d', 'vol24', 'liq', 'mcap'], 'Biggest 24h price rises among memecoins with ≥ $50K 24h volume and ≥ $25K DEX liquidity (native coins: ≥ $1M market cap). Tokens without a CoinGecko listing must be older than 36 hours, so launch-day pumps do not dominate.', 'gainers/');
+  view('losers/', 'Top memecoin losers (24h)', 'Top memecoin losers today — biggest 24h price drops', 'Memecoins with the biggest 24-hour price falls, filtered to tokens with real volume and liquidity.', d.losers, ['rank', 'name', 'price', 'ch24h', 'ch7d', 'vol24', 'liq', 'mcap'], 'Biggest 24h price falls, same filters as gainers.', 'losers/');
+  view('trending/', 'Trending memecoins', 'Trending memecoins right now — Solana, Base, Ethereum, BNB', 'Memecoins trending on GeckoTerminal across Solana, Base, Ethereum and BNB Chain, with liquidity, volume and safety scan results.', d.trendingRows, ['rank', 'name', 'price', 'ch1h', 'ch24h', 'vol24', 'liq', 'mcap', 'age'], `Pools trending on GeckoTerminal (organic ranking, not paid). Separately, ${d.boostedRows.length} tokens are currently <a href="#boosted">boosted on DexScreener</a> — boosts are paid promotion.`, 'trending/');
+  // boosted section appended to trending page
+  { const f = `${OUT}/trending/index.html`; const html = readFileSync(f, 'utf8').replace('</main>', `<section id="boosted"><h2>Boosted on DexScreener (paid promotion)</h2><p class="muted small">Projects pay DexScreener for boosts. Listed for transparency, not as a signal.</p>${table(d.boostedRows, '../', { cols: ['rank', 'name', 'price', 'ch24h', 'liq', 'vol24', 'age'], id: 'boosted-table' })}</section></main>`); writeFileSync(f, html); }
+  view('new/', 'New memecoin pairs', 'New memecoin pairs today — fresh Solana, Base & BNB tokens', 'Newest memecoin pools (last 72 hours) with at least $1K liquidity, age, volume and quick safety flags. Refreshed every 30 minutes.', d.fresh, ['rank', 'name', 'age', 'chain', 'price', 'ch1h', 'liq', 'vol24', 'txns'], 'Pools created in the last 72 hours with ≥ $1K liquidity, from GeckoTerminal new pools and DexScreener profiles. Brand-new tokens are the riskiest — open a token to run the safety scan.', 'new/');
+
+  // Chains
+  for (const ch of d.chains) {
+    const path = `chain/${ch}/`; const rows = d.tokens.filter((t) => t.chain === ch && !t.stale && (t.mcap || t.liq)).sort((a, b) => (b.mcap || 0) - (a.mcap || 0) || (b.liq || 0) - (a.liq || 0)).slice(0, 200);
+    const n = chainName(ch); const title = `${n} memecoins by market cap — prices, liquidity & rug checks`;
+    const body = `<h1>${esc(n)} memecoins</h1><p class="lede">${num(rows.length)} ${esc(n)} memecoins ranked by market cap, with on-chain liquidity and safety scans.${GUIDES.find((g) => g.slug === `best-${ch}-memecoins`) ? ` See also: <a href="../../guides/best-${ch}-memecoins/">best ${esc(n)} memecoins guide</a>.` : ''}</p>${table(rows, R(path), { cols: ['rank', 'name', 'price', 'ch24h', 'ch7d', 'mcap', 'vol24', 'liq', 'spark'] })}`;
+    put(path, layout(c, { path, title, description: `All ${n} memecoins tracked by memecoin.markets ranked by market cap, with price, 24h change, volume, DEX liquidity and rug/honeypot scan results.`, body, crumbs: [['', 'Memecoins'], ['chains/', 'Chains'], [path, n]], jsonld: { '@context': 'https://schema.org', '@graph': [{ '@type': 'CollectionPage', '@id': c.site + path, url: c.site + path, name: title, mainEntity: itemList(c, rows, title) }, crumbsLd(c, [['', 'Memecoins'], ['chains/', 'Chains'], [path, n]])] } }), { priority: 0.8 });
+  }
+  put('chains/', layout(c, { path: 'chains/', title: 'Memecoins by blockchain — Solana, Base, Ethereum, BNB Chain and more', description: 'Browse memecoin rankings by chain, with token counts, total market cap and 24h volume per chain.', nav: 'chains/', crumbs: [['', 'Memecoins'], ['chains/', 'Chains']], body: `<h1>Memecoins by chain</h1><div class="tw"><table class="rt"><thead><tr><th>Chain</th><th class="num">Tokens</th><th class="num">Market cap</th><th class="num">Volume 24h</th><th>Largest</th></tr></thead><tbody>${d.chains.map((ch) => { const ts = d.ranked.filter((t) => t.chain === ch); return `<tr><td><a href="../chain/${ch}/">${esc(chainName(ch))}</a></td><td class="num">${num(d.tokens.filter((t) => t.chain === ch && !t.stale).length)}</td><td class="num">${usd(ts.reduce((a, t) => a + (t.mcap || 0), 0))}</td><td class="num">${usd(ts.reduce((a, t) => a + (t.vol24 || 0), 0))}</td><td>${ts.slice(0, 3).map((t) => `<a href="../${t.path}">${esc(t.symbol)}</a>`).join(', ')}</td></tr>`; }).join('')}</tbody></table></div>` }), { priority: 0.6 });
+
+  // Categories
+  for (const [slug, name] of d.cats) {
+    const path = `category/${slug}/`; const rows = d.ranked.filter((t) => (t.cats || []).includes(slug)).slice(0, 250);
+    const title = `${name} — prices, market cap & rankings`;
+    const body = `<h1>${esc(name)}</h1><p class="lede">${num(rows.length)} tokens in CoinGecko's “${esc(name)}” category, ranked by market cap. Total market cap ${usd(rows.reduce((a, t) => a + (t.mcap || 0), 0))}, 24h volume ${usd(rows.reduce((a, t) => a + (t.vol24 || 0), 0))}.</p>${table(rows, R(path))}`;
+    put(path, layout(c, { path, title, description: `${name}: ${rows.length} tokens ranked by market cap with price, 24h change, volume, liquidity and safety scans. Updated every 30 minutes.`, body, crumbs: [['', 'Memecoins'], ['categories/', 'Categories'], [path, name]], jsonld: { '@context': 'https://schema.org', '@graph': [{ '@type': 'CollectionPage', '@id': c.site + path, url: c.site + path, name: title, mainEntity: itemList(c, rows, name) }, crumbsLd(c, [['', 'Memecoins'], ['categories/', 'Categories'], [path, name]])] } }), { priority: 0.7, index: rows.length >= 3 });
+  }
+  put('categories/', layout(c, { path: 'categories/', title: 'Memecoin categories — dog, cat, frog, AI, pump.fun and more', description: 'Memecoin categories ranked by total market cap and 24h volume, with the leading tokens in each.', nav: 'categories/', crumbs: [['', 'Memecoins'], ['categories/', 'Categories']], body: `<h1>Memecoin categories</h1><div class="tw"><table class="rt"><thead><tr><th>Category</th><th class="num">Tokens</th><th class="num">Market cap</th><th class="num">Volume 24h</th><th>Leaders</th></tr></thead><tbody>${d.cats.map(([s, n]) => { const ts = d.ranked.filter((t) => (t.cats || []).includes(s)); return [ts.reduce((a, t) => a + (t.mcap || 0), 0), `<tr><td><a href="../category/${s}/">${esc(n)}</a></td><td class="num">${num(ts.length)}</td><td class="num">${usd(ts.reduce((a, t) => a + (t.mcap || 0), 0))}</td><td class="num">${usd(ts.reduce((a, t) => a + (t.vol24 || 0), 0))}</td><td>${ts.slice(0, 3).map((t) => `<a href="../${t.path}">${esc(t.symbol)}</a>`).join(', ')}</td></tr>`]; }).sort((a, b) => b[0] - a[0]).map((x) => x[1]).join('')}</tbody></table></div><p class="muted small">Category membership: CoinGecko.</p>` }), { priority: 0.6 });
+
+  // Token pages
+  const ctx = { ranked: d.ranked.length };
+  let tokenCount = 0;
+  for (const t of d.tokens) {
+    const related = d.ranked.filter((x) => x.id !== t.id && x.chain === t.chain && ((t.cats || []).some((k) => k !== 'meme-token' && (x.cats || []).includes(k)) || Math.abs((x.rank || 1e9) - (t.rank || 1e9)) < 6)).slice(0, 8);
+    put(t.path, tokenPage(c, t, { scan: d.scans[t.id], related, ctx }), { priority: t.rank && t.rank <= 100 ? 0.8 : 0.6, index: indexable(t) });
+    tokenCount++;
+  }
+
+  // Compare: client tool + static pairs for the top 10
+  const top10 = d.ranked.slice(0, 10); const pairs = [];
+  for (let i = 0; i < top10.length; i++) for (let j = i + 1; j < top10.length; j++) pairs.push([top10[i], top10[j]]);
+  for (const [a, b] of pairs) {
+    const path = `compare/${slugOf(a)}-vs-${slugOf(b)}/`;
+    const rows = [['Price', price(a.priceUsd), price(b.priceUsd)], ['Market cap', usd(a.mcap), usd(b.mcap)], ['Rank', `#${a.rank}`, `#${b.rank}`], ['24h change', pct(a.ch24h), pct(b.ch24h)], ['7d change', pct(a.ch7d), pct(b.ch7d)], ['24h volume', usd(a.vol24), usd(b.vol24)], ['DEX liquidity', usd(a.liq), usd(b.liq)], ['Chain', esc(chainName(a.chain)), esc(chainName(b.chain))], ['Holders', num(a.gt?.holders?.count), num(b.gt?.holders?.count)], ['Top-10 holders', a.gt?.holders?.dist?.top_10 != null ? a.gt.holders.dist.top_10.toFixed(1) + '%' : '—', b.gt?.holders?.dist?.top_10 != null ? b.gt.holders.dist.top_10.toFixed(1) + '%' : '—'], ['Safety scan', esc(a.scan?.verdict || '—'), esc(b.scan?.verdict || '—')], ['All-time high', price(a.ath), price(b.ath)], ['From ATH', a.ath ? pct((a.priceUsd / a.ath - 1) * 100) : '—', b.ath ? pct((b.priceUsd / b.ath - 1) * 100) : '—']];
+    const ratio = a.mcap && b.mcap ? a.mcap / b.mcap : null;
+    const title = `${a.symbol} vs ${b.symbol}: market cap, price, liquidity & safety compared`;
+    const body = `<h1>${esc(a.name)} vs ${esc(b.name)}</h1><p class="lede">${esc(a.symbol)}'s market cap is ${ratio ? ratio.toFixed(2) + '×' : '—'} ${esc(b.symbol)}'s. ${esc(a.symbol)} has ${usd(a.liq)} of DEX liquidity versus ${usd(b.liq)} for ${esc(b.symbol)}; over 24 hours ${esc(a.symbol)} traded ${usd(a.vol24)} and ${esc(b.symbol)} ${usd(b.vol24)}.</p><div class="tw"><table class="rt cmp"><thead><tr><th></th><th><a href="../../${a.path}">${logo(a)} ${esc(a.symbol)}</a></th><th><a href="../../${b.path}">${logo(b)} ${esc(b.symbol)}</a></th></tr></thead><tbody>${rows.map(([k, x, y]) => `<tr><th scope="row">${k}</th><td>${x}</td><td>${y}</td></tr>`).join('')}</tbody></table></div><p><a class="btn" href="../?ids=${encodeURIComponent(a.id + ',' + b.id)}">Compare live / add more tokens</a></p>`;
+    put(path, layout(c, { path, title, description: `${a.name} (${a.symbol}) vs ${b.name} (${b.symbol}) side by side: price, market cap, 24h volume, DEX liquidity, holders and safety scan. Updated ${dateLong(c.built)}.`, body, crumbs: [['', 'Memecoins'], ['compare/', 'Compare'], [path, `${a.symbol} vs ${b.symbol}`]], jsonld: { '@context': 'https://schema.org', '@graph': [crumbsLd(c, [['', 'Memecoins'], ['compare/', 'Compare'], [path, `${a.symbol} vs ${b.symbol}`]])] } }), { priority: 0.5 });
+  }
+  put('compare/', layout(c, { path: 'compare/', title: 'Compare memecoins side by side — price, market cap, liquidity, safety', description: 'Compare up to four memecoins side by side: price, market cap, volume, liquidity, holders and safety scan, with live prices.', nav: 'compare/', crumbs: [['', 'Memecoins'], ['compare/', 'Compare']], body: `<h1>Compare memecoins</h1><p class="lede">Pick up to four tokens. Your selection is in the URL, so you can share it.</p><form id="cmp-form" class="row"><input id="cmp-q" placeholder="Add token: name, symbol or address" autocomplete="off"><button>Add</button></form><div id="cmp-out"><p class="muted">Loading…</p></div><h2>Popular comparisons</h2><ul class="cols">${pairs.map(([a, b]) => `<li><a href="${slugOf(a)}-vs-${slugOf(b)}/">${esc(a.symbol)} vs ${esc(b.symbol)}</a></li>`).join('')}</ul>` }), { priority: 0.5 });
+
+  // Watchlist + search (client-side, noindex)
+  put('watchlist/', layout(c, { path: 'watchlist/', title: 'My memecoin watchlist', description: 'Your memecoin watchlist, stored only in this browser.', nav: 'watchlist/', noindex: true, body: `<h1>Watchlist</h1><p class="lede">Saved on this device only (localStorage). Tap ☆ on any token to add it.</p><div id="wl-out"><p class="muted">Loading…</p></div><div class="row"><button id="wl-export" class="ghost">Export JSON</button><label class="btn ghost">Import<input type="file" id="wl-import" accept="application/json" hidden></label></div>` }), { index: false });
+  put('search/', layout(c, { path: 'search/', title: 'Search memecoins', description: 'Search memecoins by name, symbol or contract address.', noindex: true, body: `<h1>Search</h1><form class="row" id="search-page"><input name="q" id="sq" placeholder="Name, symbol, or contract address" autocomplete="off" autofocus><button>Search</button></form><div id="search-out"></div>` }), { index: false });
+
+  // Guides
+  const gl = GUIDES.map((g) => guidePage(g, d));
+  for (const g of gl) {
+    const path = `guides/${g.slug}/`;
+    put(path, layout(c, { path, title: g.title, description: g.description, ogType: 'article', crumbs: [['', 'Memecoins'], ['guides/', 'Guides'], [path, g.title.split(':')[0]]], body: `<article class="guide"><h1>${esc(g.title)}</h1><p class="muted small">By Blockchain Lab · Published ${esc(dateLong(g.published))} · Updated ${esc(dateLong(c.built))}</p>${g.body(R(path))}<hr><p class="small">More guides: ${gl.filter((x) => x.slug !== g.slug).map((x) => `<a href="../${x.slug}/">${esc(x.title.split(':')[0].replace(/\s*\(.*\)/, ''))}</a>`).join(' · ')}</p></article>`, jsonld: { '@context': 'https://schema.org', '@graph': [{ '@type': 'Article', '@id': c.site + path + '#article', headline: g.title.slice(0, 110), description: g.description, datePublished: g.published, dateModified: c.built, author: { '@id': c.site + '#org' }, publisher: { '@type': 'Organization', '@id': c.site + '#org', name: 'Blockchain Lab', url: 'https://blockchainlab.com' }, mainEntityOfPage: c.site + path, inLanguage: 'en-GB' }, crumbsLd(c, [['', 'Memecoins'], ['guides/', 'Guides'], [path, g.title.split(':')[0]]])] } }), { priority: 0.7 });
+  }
+  put('guides/', layout(c, { path: 'guides/', title: 'Memecoin guides — safety, UK tax, best memecoins by chain', description: 'Data-backed memecoin guides: the biggest memecoins per chain, how to spot rug pulls and honeypots, UK Capital Gains Tax on memecoins, and more.', nav: 'guides/', crumbs: [['', 'Memecoins'], ['guides/', 'Guides']], body: `<h1>Guides</h1><ul class="guides">${gl.map((g) => `<li><a href="${g.slug}/"><b>${esc(g.title)}</b></a><br><span class="muted small">${esc(g.description)}</span></li>`).join('')}</ul>` }), { priority: 0.7 });
+
+  // Methodology + about
+  put('methodology/', layout(c, { path: 'methodology/', title: 'Methodology — how memecoin.markets ranks and scans memecoins', description: 'Data sources, refresh schedule, ranking filters and the safety-scan policy behind memecoin.markets. Free public APIs only, no paid data.', crumbs: [['', 'Memecoins'], ['methodology/', 'Methodology']], body: methodology(d) }), { priority: 0.4 });
+  put('about/', layout(c, { path: 'about/', title: 'About memecoin.markets', description: 'memecoin.markets is a free, open-source memecoin tracker by Blockchain Lab: rankings, token safety scans, new pairs and UK tax tools, built only on free public data.', crumbs: [['', 'Memecoins'], ['about/', 'About']], body: `<h1>About</h1><p>memecoin.markets is an open-source (MIT) memecoin tracker built by <a href="https://blockchainlab.com">Blockchain Lab</a>. It ranks memecoins the way CoinMarketCap ranks crypto, but every token page also shows on-chain liquidity, holder concentration and a reproducible safety scan with named sources.</p><p>Everything is built from free public data — no paid APIs, no accounts, no tracking cookies. The whole site is static files rebuilt by GitHub Actions every 30 minutes; prices update live in your browser.</p><p>Source code, data pipeline and the list of open-source projects it builds on: <a href="https://github.com/Blockchains/memecoin-markets">github.com/Blockchains/memecoin-markets</a> (see REPOS.md).</p><p>Nothing here is financial or tax advice. We never ask for wallet connections or keys.</p>` }), { priority: 0.3 });
+  return { urls, tokenCount, pages };
+}
+
+function methodology(d) {
+  return `<h1>Methodology</h1>
+<h2>Sources (all free, no API keys)</h2><ul><li><b>CoinGecko public API</b> (keyless): memecoin universe (category “Meme”, top ${num(d.counts?.cg || 0)}), market cap, price, 1h/24h/7d change, 7-day sparkline, ATH, categories, contract addresses.</li><li><b>DexScreener</b>: DEX pools, liquidity, DEX volume, transactions, socials, boosts (paid promotion, labelled).</li><li><b>GeckoTerminal</b>: trending and new pools, holders and distribution, Solana mint/freeze authority, OHLCV charts.</li><li><b>Safety scan</b>: Solana RPC (publicnode), RugCheck, GoPlus, honeypot.is, Jupiter, and an on-chain buy/sell <code>eth_call</code> through the forked honeyCheck contract.</li><li><b>Blockchains forks</b>: token-list (Solana Labs registry), assets (Trust Wallet), phishing (Polkadot deny-list, ${num(d.phishingSize || 0)} domains).</li></ul>
+<h2>Refresh</h2><p>GitHub Actions rebuilds the site every 30 minutes. Holder data, full pool lists and safety scans are refreshed on a rolling basis (holders/scans every 24h, pools every 6h, biggest tokens first) to stay inside free rate limits. Prices on the page are refreshed live from DexScreener while you browse.</p>
+<h2>Ranking rules</h2><ul><li><b>Market cap</b>: CoinGecko market cap; DEX-only tokens use DexScreener market cap and need ≥ $10K liquidity.</li><li><b>Gainers/losers</b>: ≥ $50K 24h volume and ≥ $25K DEX liquidity (native coins: ≥ $1M market cap); unlisted tokens must be older than 36h.</li><li><b>Sanity filter</b>: a market cap is not ranked when both 24h volume and liquidity are below 0.01% of it (usually a bad supply figure).</li><li><b>Not memecoins</b>: DEX-discovered tokens that CoinGecko lists outside its meme categories are excluded.</li><li><b>Trending</b>: GeckoTerminal trending pools (organic), ≥ $5K liquidity. DexScreener boosts are shown separately as paid.</li><li><b>New pairs</b>: pools created in the last 72h with ≥ $1K liquidity.</li><li>Tokens not seen for 14 days are removed. Tokens with under $10K liquidity and no CoinGecko listing get a page but are not indexed by search engines.</li></ul>
+<h2>Safety verdicts (${'policy-v1.1'})</h2><p><b>CLEAR</b>: every hard check measured and passed. <b>DESK_PASS</b>: no measured hard fail, some hard checks unmeasured, liquidity ≥ $150. <b>INCOMPLETE</b>: not enough evidence. <b>FAIL</b>: at least one measured hard fail (e.g. live mint/freeze authority, honeypot, tax > 10%, top-10 holders > 80%, liquidity < $150, no sell route). A pass is not a buy.</p>`;
+}
+
+export function seoFiles(OUT, c, urls, d) {
+  const lm = c.built.slice(0, 10);
+  writeFileSync(`${OUT}/sitemap.xml`, `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map(([p, pr]) => `<url><loc>${esc(c.site + p)}</loc><lastmod>${lm}</lastmod><priority>${pr.toFixed(1)}</priority></url>`).join('\n')}\n</urlset>\n`);
+  writeFileSync(`${OUT}/robots.txt`, `# memecoin.markets — all crawlers welcome, including AI agents (see llms.txt)\nUser-agent: *\nAllow: /\nDisallow: /search/\n\nSitemap: ${c.site}sitemap.xml\n`);
+  writeFileSync(`${OUT}/llms.txt`, `# memecoin.markets\n\n> Free, open-source memecoin rankings (CoinMarketCap-style) with on-chain liquidity, holders and a reproducible rug/honeypot safety scan for every token. Built only on free public data (CoinGecko public API, DexScreener, GeckoTerminal, RugCheck, GoPlus, honeypot.is, Jupiter, public RPCs). Rebuilt every 30 minutes. Evidence, not advice.\n\n## Key pages\n- ${c.site} — top memecoins by market cap\n- ${c.site}trending/ — trending (GeckoTerminal, organic) + DexScreener boosts (paid, labelled)\n- ${c.site}new/ — new pairs (72h, ≥ $1K liquidity)\n- ${c.site}gainers/ and ${c.site}losers/ — 24h movers (volume/liquidity filtered)\n- ${c.site}token/{chain}/{address}/ — token page: price, chart, holders, pools, safety scan\n- ${c.site}guides/ — guides (best memecoins per chain, rug-pull checklist, honeypots, UK memecoin tax)\n- ${c.site}methodology/ — sources and ranking rules\n- ${c.site}tools/ — safety scanner, new-pair radar, UK CGT/FIFO PnL, launch checklist, portfolio\n\n## JSON API (static, CORS *)\n- ${c.site}v1/index.json — endpoint list\n- ${c.site}v1/markets.json — all ranked memecoins\n- ${c.site}v1/tokens-index.json — compact index of every token page\n- ${c.site}v1/token/{chain}/{address}.json — one token incl. latest safety scan\n- ${c.site}v1/trending.json, v1/new-pairs.json, v1/gainers.json, v1/losers.json, v1/categories.json\n- ${c.site}v1/scans-solana.json, v1/radar-solana.json — scanner feeds\n- ${c.site}lib/index.js — SDK as ES module (scanToken, radar, ukCgt)\n\n## Counts (this build)\n- ranked: ${d.ranked.length}; token pages: ${d.tokens.length}; built ${c.built}\n\n## Source\n- https://github.com/Blockchains/memecoin-markets (MIT)\n`);
+}
+

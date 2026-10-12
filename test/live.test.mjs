@@ -88,3 +88,21 @@ test('rotki contract: every column the Blockchains/rotki generic-trades importer
   const ours = new Set(toRotkiCsv([{ time: '2025-01-01', side: 'buy', asset: 'X', qty: 1, total: 1 }]).split('\n')[0].split(','));
   for (const c of cols) assert.ok(ours.has(c), `rotki reads "${c}" which we do not emit`);
 });
+
+test('on-chain honeyCheck (Blockchains fork) simulates PEPE on Ethereum via eth_call', async () => {
+  const { honeySim } = await import('../src/sources/honeysim.js');
+  const r = await honeySim('ethereum', PEPE);
+  assert.equal(r.simulated, true, JSON.stringify(r));
+  assert.equal(r.honeypot, false);
+  assert.ok(r.roundTripLossPct > 0 && r.roundTripLossPct < 3, String(r.roundTripLossPct));
+});
+
+test('keyless CoinGecko meme category + GeckoTerminal holders', async () => {
+  const cg = await import('../src/sources/coingecko.js');
+  const rows = await cg.markets({ category: 'meme-token', perPage: 10, sparkline: false });
+  assert.ok(rows.length === 10 && rows.some((r) => r.cg === 'dogecoin'), rows.map((r) => r.cg).join());
+  const { tokenInfo } = await import('../src/sources/geckoterminal.js');
+  const i = await tokenInfo('solana', BONK);
+  assert.ok(i.holders?.count > 100000);
+  assert.equal(i.mintAuthority, 'no');
+});

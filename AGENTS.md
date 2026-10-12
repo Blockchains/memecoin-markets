@@ -10,6 +10,12 @@ Memecoin safety + desk toolkit behind memecoin.markets / memecoin.grok.me: token
 - Manifest: [`blocks.json`](blocks.json) (schema: [BLOCKS-SCHEMA](https://github.com/Blockchains/.github/blob/main/docs/BLOCKS-SCHEMA.md))
 - How it fits with the other Blockchains repos: [Build with Blocks](https://github.com/Blockchains/.github/blob/main/docs/BUILD-WITH-BLOCKS.md)
 
+## Rankings product (v0.2)
+
+- `scripts/build-site.mjs` → `scripts/lib/collect.mjs` (data, rolling caches in `v1/state.json`), `pages.mjs` / `token-page.mjs` / `guides.mjs` / `render.mjs` (static HTML, relative links), `web/site.js` (progressive enhancement: watchlist, sort, live prices, search, compare, chart, live scan), `web/sw.js` (offline).
+- Budgets via env: `CG_PAGES`, `CG_CATS_PER_BUILD`, `GT_BUDGET`, `POOLS_BUDGET`, `ASSETS_BUDGET`, `SCAN_BUDGET`, `MAX_SCANS`; `OFFLINE=1 PREV_STATE_FILE=state.json` renders from a saved state without network.
+- No paid APIs or keys, ever. Birdeye/GMGN/CMC are excluded (see docs/REPOS.md).
+
 ## Rules
 
 - Real data only. No mocks in live/e2e tests; unit tests use payloads recorded from the real APIs (`test/fixtures/`).
