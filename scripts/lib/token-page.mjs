@@ -1,4 +1,5 @@
 // Per-token page: /token/{chain}/{address}/ (or /coin/{coingecko-id}/ for native coins without a contract).
+import { swapCta } from './swap.mjs';
 import { layout, table, logo, tokenLabel, crumbsLd, esc, price, usd, usdFull, pct, num, date, dateLong, age, spark, chainName, EXPLORER, short } from './render.mjs';
 import { MEME_CATEGORIES } from '../../src/sources/coingecko.js';
 const CAT = Object.fromEntries(MEME_CATEGORIES);
@@ -55,7 +56,7 @@ export function tokenPage(c, t, { scan, related, ctx }) {
   <div><h1>${esc(t.name || sym)} <span class="sym">${esc(sym)}</span></h1>
   <p class="muted small">${t.rank ? `Rank #${t.rank} · ` : ''}${esc(cn)}${t.address ? ` · <span class="mono" title="${esc(t.address)}">${esc(short(t.address))}</span> <button class="copy ghost" data-copy="${esc(t.address)}">Copy</button>` : ''}${t.stale ? ' · <span class="warn">not seen in the latest refresh</span>' : ''}</p></div>
   <div class="tp"><div class="px" data-live="price">${price(t.priceUsd)}</div><div>${pct(t.ch24h)} <span class="muted small">24h</span></div></div>
-  <div class="ta"><button class="star big" data-star="${esc(t.id)}" aria-label="Add to watchlist">☆ Watch</button> <a class="btn ghost" href="${R}compare/?ids=${encodeURIComponent(t.id)}">Compare</a></div>
+  <div class="ta"><button class="star big" data-star="${esc(t.id)}" aria-label="Add to watchlist">☆ Watch</button> ${swapCta(t, R, esc)}</div>
 </header>
 <dl class="stats">
   <div><dt>Market cap</dt><dd data-live="mcap">${usd(t.mcap)}</dd></div>

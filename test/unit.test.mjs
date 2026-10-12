@@ -119,3 +119,14 @@ test('launch checklist maps scan checks', () => {
 test('radar quick flags', () => {
   assert.deepEqual(quickFlags({ liquidityUsd: 10, txns5m: { buys: 9, sells: 0 } }), ['below desk liquidity bar', 'no sells in 5m']);
 });
+
+test('buy/sell swap deep links', async () => {
+  const { swapLinks, swapCta } = await import('../scripts/lib/swap.mjs');
+  const s = swapLinks({ chain: 'solana', address: 'DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263' });
+  assert.match(s.buy, /^https:\/\/jup\.ag\/swap\?sell=So1+2&buy=DezX/);
+  assert.match(s.sell, /sell=DezX.*&buy=So1/);
+  const e = swapLinks({ chain: 'base', address: '0x' + 'a'.repeat(40) });
+  assert.match(e.buy, /app\.uniswap\.org\/swap\?chain=base&inputCurrency=NATIVE&outputCurrency=0xa/);
+  assert.equal(swapLinks({ chain: 'ton', address: 'EQabc' }), null);
+  assert.match(swapCta({ id: 'x' }, '../', (x) => x), /compare\/\?ids=x">Compare/);
+});

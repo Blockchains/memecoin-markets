@@ -93,3 +93,22 @@ test('offline core: rankings, a visited token page, watchlist and UK tax calcula
   assert.match(await page.textContent('[data-year="2024/25"] .net'), /£3,930\.00/);
   await ctx.setOffline(false); await ctx.close();
 });
+
+test('token page: Buy/Sell replace Compare with identical box, open correct swap URLs', async () => {
+  const page = await browser.newPage();
+  await page.goto(`${base}token/solana/DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263/`);
+  assert.equal(await page.$('.ta a[href*="compare/"]'), null, 'no Compare CTA');
+  const box = async (sel) => page.$eval(sel, (el) => { const s = getComputedStyle(el); const r = el.getBoundingClientRect(); return [Math.round(r.height), s.fontSize, s.padding, s.borderRadius, s.backgroundColor, s.className]; });
+  const b = await box('.ta [data-swap=buy]'), s = await box('.ta [data-swap=sell]');
+  assert.deepEqual(b.slice(0, 5), s.slice(0, 5));
+  const ref = await page.evaluate(() => { const a = document.createElement('a'); a.className = 'btn ghost'; a.textContent = 'Compare'; document.querySelector('.ta').append(a); const st = getComputedStyle(a); const r = a.getBoundingClientRect(); const o = [Math.round(r.height), st.fontSize, st.padding, st.borderRadius, st.backgroundColor]; a.remove(); return o; });
+  assert.deepEqual(b.slice(0, 5), ref, 'same box as old Compare');
+  assert.match(await page.getAttribute('[data-swap=buy]', 'href'), /^https:\/\/jup\.ag\/swap\?sell=So11111111111111111111111111111111111111112&buy=DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263$/);
+  assert.match(await page.getAttribute('[data-swap=sell]', 'href'), /^https:\/\/jup\.ag\/swap\?sell=DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263&buy=So1/);
+  assert.ok(await page.$('link[rel=preconnect][href="https://jup.ag"]'));
+  const [popup] = await Promise.all([page.waitForEvent('popup'), page.click('[data-swap=buy]')]);
+  assert.match(popup.url(), /jup\.ag/); await popup.close();
+  await page.goto(`${base}token/ethereum/0x6982508145454ce325ddbe47a25d4ec3d2311933/`);
+  assert.match(await page.getAttribute('[data-swap=buy]', 'href'), /app\.uniswap\.org\/swap\?chain=mainnet&inputCurrency=NATIVE&outputCurrency=0x6982/i);
+  await page.close();
+});
