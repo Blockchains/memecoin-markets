@@ -52,3 +52,21 @@ export async function sellProbe(mint, amountRaw, opts) {
     return /NO_ROUTES|No routes|not tradable|TOKEN_NOT_TRADABLE/i.test(m) ? { routable: false, error: 'No routes found (Jupiter)' } : { routable: null, error: m };
   }
 }
+
+/**
+ * Sell-side depth: price impact of selling $usd worth of the token for USDC through Jupiter's router,
+ * for each size in `sizes`. Read-only quote; no transaction is built. Needs the token USD price and decimals.
+ */
+export async function sellImpact(mint, { priceUsd, decimals, sizes = [1000, 10000] }, opts) {
+  if (!priceUsd || decimals == null) throw new Error('sellImpact needs priceUsd and decimals');
+  const out = [];
+  for (const usd of sizes) {
+    const raw = BigInt(Math.floor((usd / priceUsd) * 10 ** Math.min(decimals, 12))) * 10n ** BigInt(Math.max(0, decimals - 12));
+    try {
+      const q = await quote(mint, USDC_MINT, raw.toString(), 500, opts);
+      const got = Number(q.outAmount) / 1e6;
+      out.push({ usd, outUsdc: got, priceImpactPct: q.priceImpactPct, lossPct: Math.max(0, +(((usd - got) / usd) * 100).toFixed(3)), routes: [...new Set(q.routes)] });
+    } catch (e) { out.push({ usd, error: String(e.message).slice(0, 120) }); }
+  }
+  return { mint, source: 'jupiter lite-api /swap/v1/quote (Blockchains/jupiter-quote-api-node schema)', sizes: out };
+}

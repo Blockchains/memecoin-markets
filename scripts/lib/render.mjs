@@ -5,7 +5,7 @@ import { esc, price, usd, usdFull, pct, num, date, dateLong, age, spark, chainNa
 export const SITE_NAME = 'Memecoin Markets';
 export function ctx({ site, built }) { return { site, built }; }
 
-const NAV = [['', 'Rankings'], ['trending/', 'Trending'], ['new/', 'New pairs'], ['gainers/', 'Gainers'], ['losers/', 'Losers'], ['categories/', 'Categories'], ['chains/', 'Chains'], ['watchlist/', 'Watchlist'], ['compare/', 'Compare'], ['guides/', 'Guides'], ['tools/', 'Tools']];
+const NAV = [['', 'Rankings'], ['trending/', 'Trending'], ['new/', 'New pairs'], ['pumpfun/', 'Pump.fun'], ['gainers/', 'Gainers'], ['losers/', 'Losers'], ['categories/', 'Categories'], ['chains/', 'Chains'], ['watchlist/', 'Watchlist'], ['compare/', 'Compare'], ['guides/', 'Guides'], ['tools/', 'Tools']];
 
 export function layout(c, p) {
   const depth = p.path.split('/').filter(Boolean).length;

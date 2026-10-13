@@ -48,3 +48,4 @@ thead th{font-size:12px;color:var(--mu);font-weight:600;position:sticky;top:0;ba
 .cmp td,.cmp th{white-space:normal}
 .ft{border-top:1px solid var(--ln);padding:16px;max-width:1240px;margin:0 auto;font-size:12px;color:var(--mu)}
 @media (max-width:720px){.sp,.rt th[data-k=spark],.rt th[data-k=ch1h],.rt td[data-live=ch1h],.rt th[data-k=ch7d],.rt td[data-live=ch7d]{display:none}h1{font-size:20px}.px{font-size:22px}.th{grid-template-columns:auto 1fr}.tp{grid-column:1/-1;text-align:left}}
+.pbar{display:inline-block;width:70px;height:8px;background:var(--bd,#333);border-radius:4px;vertical-align:middle;overflow:hidden}.pbar i{display:block;height:100%;background:var(--cy)}

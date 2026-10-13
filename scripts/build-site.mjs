@@ -9,6 +9,8 @@ import { MEME_CATEGORIES } from '../src/sources/coingecko.js';
 import { collect, slimScan } from './lib/collect.mjs';
 import { buildData, writePages, seoFiles } from './lib/pages.mjs';
 import { layout } from './lib/render.mjs';
+import { enrichExtras } from './lib/extras.mjs';
+import { writeExtPages } from './lib/ext-pages.mjs';
 
 // IndexNow ownership key: public by design (served at /<key>.txt), not a secret.
 const INDEXNOW_KEY = readdirSync('web').find((f) => /^[0-9a-f]{32}\.txt$/.test(f))?.slice(0, 32);
@@ -74,6 +76,11 @@ write('scans-solana.json', { count: scans.length, by_address: Object.fromEntries
 // ---- rankings product ----
 const col = OFFLINE ? { tokens: prev.tokens || [], trending: prev.trending || [], boosted: prev.boosted || [], state: prev.state || { scans: {} }, errors: { offline: 'OFFLINE=1: reused previous state' }, counts: {} } : await collect({ prev: { ...(prev.state || {}), tokens: prev.tokens } });
 Object.assign(errors, col.errors);
+// v0.3: memecoin repo forks (pump.fun IDL, Raydium, Jupiter depth, token lists, scam lists, web3icons)
+let ext = { board: prev.pumpfun || { curve: [], graduated: [] }, listMeta: {}, counts: {}, errors: {} };
+if (!OFFLINE) { try { ext = await enrichExtras(col.tokens, col.state, { OUT, overBudget: () => Date.now() - t0 > Number(process.env.BUILD_BUDGET_MS || 22 * 60e3) }); } catch (e) { errors.extras = String(e.message).slice(0, 160); } }
+Object.assign(errors, ext.errors);
+for (const t of col.tokens) if (!t.image && t.logoSvg) t.image = site + t.logoSvg;
 // desk scans also feed token pages
 for (const s of scans) col.state.scans[`solana:${s.address}`] ||= slimScan(s);
 for (const t of col.tokens) { const s = col.state.scans[t.id]; if (s) t.scan = { verdict: s.verdict, at: s.scannedAt }; }
@@ -84,6 +91,8 @@ const d = buildData(col.tokens, { built: now, trending: col.trending, boosted: c
 d.chains = Object.entries(d.tokens.filter((t) => t.chain && !t.stale).reduce((a, t) => ((a[t.chain] = (a[t.chain] || 0) + 1), a), {})).filter(([, n]) => n >= 5).sort((a, b) => b[1] - a[1]).map(([ch]) => ch);
 const { urls, tokenCount, pages } = writePages(OUT, c, d);
 urls.push(['tools/', 0.6]);
+const extPut = (path, html, { priority = 0.6 } = {}) => { mkdirSync(`${OUT}/${path}`, { recursive: true }); writeFileSync(`${OUT}/${path}index.html`, html); urls.push([path, priority]); };
+const extOut = writeExtPages(extPut, c, d, ext);
 
 // Offline + 404 pages
 mkdirSync(`${OUT}/offline`, { recursive: true });
@@ -101,7 +110,11 @@ write('new-pairs.json', { rows: d.fresh.map(slimTok) });
 write('gainers.json', { rows: d.gainers.map(slimTok) });
 write('losers.json', { rows: d.losers.map(slimTok) });
 write('categories.json', { categories: cats.map(([slug, name]) => ({ slug, name, url: `${site}category/${slug}/`, ids: d.ranked.filter((t) => (t.cats || []).includes(slug)).map((t) => t.id) })) });
-for (const t of d.tokens) if (t.address) write(`token/${t.chain}/${t.address}.json`, { token: { ...slimTok(t), pools: t.pools || [], links: t.links || [], linkCheck: t.linkCheck || null, holdersDist: t.gt?.holders || null, authorities: t.gt ? { mint: t.gt.mintAuthority, freeze: t.gt.freezeAuthority } : null, ath: t.ath ?? null, athDate: t.athDate || null, spark7d: t.spark || null }, scan: d.scans[t.id] || null });
+for (const t of d.tokens) if (t.address) write(`token/${t.chain}/${t.address}.json`, { token: { ...slimTok(t), pools: t.pools || [], links: t.links || [], linkCheck: t.linkCheck || null, holdersDist: t.gt?.holders || null, authorities: t.gt ? { mint: t.gt.mintAuthority, freeze: t.gt.freezeAuthority } : null, ath: t.ath ?? null, athDate: t.athDate || null, spark7d: t.spark || null, pumpfun: t.pumpfun || null, raydium: t.raydium || null, sellImpact: t.sellImpact || null, tokenLists: t.lists || null, scamCheck: t.scamCheck || null, logoSvg: t.logoSvg ? site + t.logoSvg : null }, scan: d.scans[t.id] || null });
+const mini = (t) => ({ id: t.id, url: site + t.path, name: t.name, symbol: t.symbol, chain: t.chain, address: t.address, mcap: t.mcap ?? null, liq: t.liq ?? null });
+write('pumpfun.json', { source: 'pump.fun bonding curves decoded on-chain with the IDL from Blockchains/pump-public-docs; pools from GeckoTerminal', idl: ext.board.idl || null, initialRealTokenReserves: ext.board.initialRealTokenReserves || null, curve: ext.board.curve, graduated: ext.board.graduated, ranked: extOut.ranked.map((t) => ({ ...mini(t), pumpfun: t.pumpfun })) });
+write('sell-depth.json', { source: 'Jupiter lite API /swap/v1/quote (read-only), schema per Blockchains/jupiter-quote-api-node', rows: extOut.depth.map(({ t }) => ({ ...mini(t), sellImpact: t.sellImpact, raydium: t.raydium ? { count: t.raydium.count, tvl: t.raydium.tvl, burnedPct: t.raydium.burnedPct } : null })) });
+write('token-lists.json', { lists: ext.listMeta, sources: ['Blockchains/tokenLists', 'Blockchains/default-token-list', 'Blockchains/scam-database', 'Blockchains/eth-phishing-detect'], flagged: extOut.flaggedRows.map((t) => ({ ...mini(t), scamCheck: t.scamCheck })), rows: extOut.listedRows.map((t) => ({ ...mini(t), lists: t.lists })) });
 // Embeddable SVG safety badges (free, backlink-worthy): /badge/{chain}/{address}.svg
 const BADGE_COL = { CLEAR: '#16a34a', DESK_PASS: '#65a30d', INCOMPLETE: '#ca8a04', FAIL: '#dc2626' };
 const xmlEsc = (x) => String(x).replace(/[<>&"]/g, (ch) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' })[ch]);
@@ -114,7 +127,7 @@ for (const t of d.tokens) {
   badges++;
 }
 // state for the next build (rolling caches)
-writeFileSync(`${OUT}/v1/state.json`, JSON.stringify({ generated_at: now, tokens: col.tokens.map(({ rank, ...t }) => t), trending: col.trending, boosted: col.boosted, state: col.state }));
+writeFileSync(`${OUT}/v1/state.json`, JSON.stringify({ generated_at: now, tokens: col.tokens.map(({ rank, ...t }) => t), trending: col.trending, boosted: col.boosted, state: col.state, pumpfun: ext.board }));
 
 const endpoints = [
   ['v1/markets.json', 'All ranked memecoins (market cap order): price, mcap, FDV, volume, DEX liquidity, 1h/24h/7d change, holders, top-10 %, safety verdict'],
@@ -126,6 +139,10 @@ const endpoints = [
   ['v1/categories.json', 'Meme categories with member token ids'],
   ['v1/radar-solana.json', 'Newest Solana pools (GeckoTerminal) + DexScreener profiles/boosts with quick flags'], ['v1/radar-base.json', 'Same radar for Base'],
   ['v1/scans-solana.json', 'Full safety scans for the latest + top DexScreener Solana boosts and the freshest liquid pools, keyed by mint'],
+  ['v1/pumpfun.json', 'pump.fun: most-traded coins on the bonding curve + graduated PumpSwap coins, with on-chain curve progress (IDL from Blockchains/pump-public-docs)'],
+  ['v1/sell-depth.json', 'Sell depth: % lost selling $1K / $10K of each liquid Solana memecoin into USDC (Jupiter quotes) + Raydium LP burn'],
+  ['v1/token-lists.json', 'EVM token-list coverage (tokenlistooor, Uniswap default list) + ScamSniffer/MetaMask scam-list hits'],
+  ['logos/{coingecko-id}.svg', 'Vector token logos from Blockchains/web3icons'],
   ['v1/policy.json', `Desk policy ${POLICY.id} thresholds and the launch checklist`],
   ['lib/index.js', 'The SDK as a browser ES module: import { scanToken, radar, ukCgt } from this URL'],
   ['sitemap.xml', 'Every indexable page'], ['llms.txt', 'Agent-readable summary'], ['llms-full.txt', 'Full agent-readable dump: guides + top 200 tokens'], ['badge/{chain}/{address}.svg', 'Embeddable SVG safety-verdict badge per token'], ['blocks.json', 'Blockchains building-block manifest'],
@@ -137,4 +154,4 @@ writeFileSync(`${OUT}/indexnow.json`, JSON.stringify({ key: INDEXNOW_KEY, keyLoc
 // Full-text search index (Pagefind, MIT) over the generated HTML.
 if (process.env.PAGEFIND !== '0') { try { execFileSync('npx', ['-y', 'pagefind', '--site', OUT, '--glob', '{guides,category,chain,methodology,about}/**/*.html'], { stdio: 'ignore', timeout: 120000 }); } catch (e) { errors.pagefind = String(e.message).slice(0, 120); } }
 
-console.log(JSON.stringify({ out: OUT, site, ms: Date.now() - t0, ranked: d.ranked.length, tokenPages: tokenCount, sitemap: urls.length, trending: d.trendingRows.length, fresh: d.fresh.length, gainers: d.gainers.length, scans: Object.keys(col.state.scans).length, deskScans: scans.length, badges, counts: col.counts, errors }, null, 1));
+console.log(JSON.stringify({ out: OUT, site, ms: Date.now() - t0, ranked: d.ranked.length, tokenPages: tokenCount, sitemap: urls.length, trending: d.trendingRows.length, fresh: d.fresh.length, gainers: d.gainers.length, scans: Object.keys(col.state.scans).length, deskScans: scans.length, badges, counts: col.counts, ext: { ...ext.counts, pumpRanked: extOut.pumpRanked, depthRows: extOut.depthRows, listed: extOut.listed, flagged: extOut.flagged }, errors }, null, 1));

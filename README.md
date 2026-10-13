@@ -21,6 +21,16 @@ SEO: unique title/description/canonical/OG/Twitter per page, JSON-LD (`WebSite`+
 
 Refresh: GitHub Actions rebuilds every 30 minutes; holders/scans/pools/assets are refreshed on a rolling budget carried in `v1/state.json`, so free rate limits are respected. Offline: service worker keeps the shell, rankings, visited token pages, watchlist and the UK tax calculator.
 
+## Memecoin repo forks (v0.3)
+
+Eight new Blockchains forks, all keyless, each operated by the build/SDK/MCP (details in [docs/REPOS.md](docs/REPOS.md)):
+
+- **[/pumpfun/](https://blockchains.github.io/memecoin-markets/pumpfun/)**: pump.fun bonding-curve progress decoded on-chain with the official IDL ([pump-public-docs](https://github.com/Blockchains/pump-public-docs)); `v1/pumpfun.json`; `pumpfun.bondingCurve(mint)`.
+- **[/sell-depth/](https://blockchains.github.io/memecoin-markets/sell-depth/)**: % lost selling $1K/$10K into USDC (Jupiter quotes, [jupiter-quote-api-node](https://github.com/Blockchains/jupiter-quote-api-node)) and Raydium LP burn ([raydium-sdk-V2](https://github.com/Blockchains/raydium-sdk-V2)); `v1/sell-depth.json`.
+- **[/token-lists/](https://blockchains.github.io/memecoin-markets/token-lists/)**: EVM token-list coverage ([tokenLists](https://github.com/Blockchains/tokenLists), [default-token-list](https://github.com/Blockchains/default-token-list)) + scam lists ([scam-database](https://github.com/Blockchains/scam-database), [eth-phishing-detect](https://github.com/Blockchains/eth-phishing-detect)); `v1/token-lists.json`.
+- Token pages: "Liquidity depth, launchpad & listings" card; SVG logos from [web3icons](https://github.com/Blockchains/web3icons) at `/logos/{id}.svg`.
+- MCP: `memecoin_pumpfun_curve`, `memecoin_raydium_pools`, `memecoin_sell_impact`, `memecoin_token_lists`.
+
 ## Toolkit (v0.1, now at `/tools/`)
 
 | Feature | What it does | Data |

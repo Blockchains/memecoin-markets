@@ -54,10 +54,10 @@ jobs:
           set -e
           B=https://blockchains.github.io/memecoin-markets
           sleep 20
-          for f in v1/index.json v1/markets.json v1/tokens-index.json v1/radar-solana.json v1/scans-solana.json lib/index.js llms.txt llms-full.txt robots.txt sitemap.xml badge/solana/DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263.svg; do
+          for f in v1/pumpfun.json v1/sell-depth.json v1/token-lists.json v1/index.json v1/markets.json v1/tokens-index.json v1/radar-solana.json v1/scans-solana.json lib/index.js llms.txt llms-full.txt robots.txt sitemap.xml badge/solana/DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263.svg; do
             curl -sSf --retry 8 --retry-all-errors --retry-delay 10 -D /tmp/h "$B/$f" -o /tmp/b; grep -qi 'access-control-allow-origin: \*' /tmp/h; echo "ok $f $(wc -c </tmp/b) bytes"
           done
-          for p in "" token/solana/DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263/ trending/ new/ gainers/ guides/uk-memecoin-tax/ guides/how-to-buy-memecoins-safely-uk/ guides/mint-and-freeze-authority-explained/ tools/; do
+          for p in "" token/solana/DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263/ trending/ new/ gainers/ guides/uk-memecoin-tax/ guides/how-to-buy-memecoins-safely-uk/ guides/mint-and-freeze-authority-explained/ tools/ pumpfun/ sell-depth/ token-lists/; do
             code=$(curl -s -o /tmp/p -w '%{http_code}' --retry 5 --retry-all-errors "$B/$p"); grep -q '<link rel="canonical"' /tmp/p; echo "$code /$p"; test "$code" = 200
           done
           curl -sSf "$B/sitemap.xml" | grep -o '<loc>[^<]*/token/[^<]*</loc>' | sed 's/<[^>]*>//g' | shuf -n 10 --random-source=/dev/urandom > /tmp/sample

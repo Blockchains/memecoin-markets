@@ -15,6 +15,10 @@ const CALLS = {
   memecoin_uk_cgt: { trades: T },
   memecoin_fifo_pnl: { trades: T },
   memecoin_rotki_csv: { trades: T },
+  memecoin_pumpfun_curve: { mint: '9BB6NFEcjBCtnNLFko2FqVQBq8HHM13kCyYcdQbgpump' },
+  memecoin_raydium_pools: { mint: BONK },
+  memecoin_sell_impact: { mint: BONK, sizes_usd: [1000] },
+  memecoin_token_lists: { address: '0x6982508145454Ce325dDbE47a25d4ec3d2311933' },
   memecoin_portfolio: { holdings: [{ mint: BONK, qty: 1000000 }] },
 };
 
@@ -33,6 +37,10 @@ test('stdio MCP server lists and runs every tool live', async () => {
       if (name === 'memecoin_scan_token') assert.equal(body.checks.find((c) => c.id === 'mint_authority').status, 'pass');
       if (name === 'memecoin_uk_cgt') assert.equal(body.disposals[0].gain, 15);
       if (name === 'memecoin_new_pairs') assert.ok(body.count > 0);
+      if (name === 'memecoin_pumpfun_curve') assert.equal(body.curve.complete, true);
+      if (name === 'memecoin_raydium_pools') assert.ok(body.count > 0 && body.tvl > 0);
+      if (name === 'memecoin_sell_impact') assert.ok(body.sizes[0].lossPct < 5, JSON.stringify(body.sizes));
+      if (name === 'memecoin_token_lists') assert.ok(body.listedOn.includes('coingecko'));
     }
   } finally { await client.close(); }
 });

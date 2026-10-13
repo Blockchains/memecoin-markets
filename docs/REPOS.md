@@ -1,7 +1,22 @@
-# GitHub repos evaluated for memecoin-markets (updated 2026-10-12, CMC-style rankings release)
+# GitHub repos evaluated for memecoin-markets (updated 2026-10-13, v0.3 memecoin forks release)
 
 Rule: prefer maintained, licensed, testable code. Depend or wrap; fork into Blockchains only when needed.
 Nothing that snipes, bundles, front-runs or holds keys is integrated.
+
+## Forked into Blockchains in v0.3 (memecoin data forks, all keyless)
+
+Every fork below is read live from `raw.githubusercontent.com/Blockchains/<fork>` by the Pages build, the SDK or the tests. Features: [/pumpfun/](https://blockchains.github.io/memecoin-markets/pumpfun/), [/sell-depth/](https://blockchains.github.io/memecoin-markets/sell-depth/), [/token-lists/](https://blockchains.github.io/memecoin-markets/token-lists/) and the "Liquidity depth, launchpad & listings" card on every token page.
+
+| Fork | Upstream | What it powers | Code | Proof |
+|---|---|---|---|---|
+| [Blockchains/pump-public-docs](https://github.com/Blockchains/pump-public-docs) | pump-fun/pump-public-docs | Official Anchor IDL (`idl/pump.json`) drives an IDL-based Borsh decoder: pump.fun bonding-curve progress, SOL raised, graduated flag, creator, mayhem mode — read on-chain with one `getMultipleAccounts` per 99 mints on a public RPC. `/pumpfun/` page, `v1/pumpfun.json`, token card, MCP `memecoin_pumpfun_curve`, SDK `pumpfun.bondingCurve()`. | `src/sources/pumpfun.js` | PDA derivation byte-for-byte vs `@solana/kit`; synthetic account from the fork IDL; MCP live (Fartcoin = graduated) |
+| [Blockchains/raydium-sdk-V2](https://github.com/Blockchains/raydium-sdk-V2) | raydium-io/raydium-sdk-V2 | Raydium pools for each Solana token (AMM/CPMM/CLMM) with TVL, fee and **LP burn %**, TVL-weighted burned share. Token card, `v1/sell-depth.json`, MCP `memecoin_raydium_pools`. | `src/sources/raydium.js` | contract test: our host + route equal `BASE_HOST` + `POOL_SEARCH_MINT` in the fork's `src/api/url.ts`; MCP live (BONK) |
+| [Blockchains/jupiter-quote-api-node](https://github.com/Blockchains/jupiter-quote-api-node) | jup-ag/jupiter-quote-api-node | Sell depth: % lost selling $1K / $10K into USDC via read-only Jupiter quotes. `/sell-depth/` ranking, token card, MCP `memecoin_sell_impact`. | `src/sources/jupiter.js` (`sellImpact`) | contract test: fields read exist in the fork's `generated/models/QuoteResponse.ts`; MCP live |
+| [Blockchains/tokenLists](https://github.com/Blockchains/tokenLists) | SmolDapp/tokenLists (tokenlistooor) | "Listed on N token lists" for every EVM memecoin (1inch, CoinGecko, CoW Swap, LI.FI, ParaSwap, Etherscan, Ledger, Aerodrome, …). `/token-lists/`, `v1/token-lists.json`, MCP `memecoin_token_lists`. | `src/sources/lists.js` | MCP live (PEPE on CoinGecko list) |
+| [Blockchains/default-token-list](https://github.com/Blockchains/default-token-list) | Uniswap/default-token-list | "Uniswap default list" badge (wallet-verified) per chain. | `src/sources/lists.js` | build log `ext.listed` |
+| [Blockchains/scam-database](https://github.com/Blockchains/scam-database) | scamsniffer/scam-database | ScamSniffer scam addresses checked against every EVM contract + pool; scam domains against every token link. | `src/sources/lists.js` (`checkScam`) | unit test (address + parent-domain matching) |
+| [Blockchains/eth-phishing-detect](https://github.com/Blockchains/eth-phishing-detect) | MetaMask/eth-phishing-detect | MetaMask blocklist (+ allow-list) added to the token-link check. | same | unit test (allow-list wins) |
+| [Blockchains/web3icons](https://github.com/Blockchains/web3icons) | 0xa3k5/web3icons | SVG token logos keyed by CoinGecko id, self-hosted at `/logos/{id}.svg`; logo fallback + "Vector logo" link on token pages. | `scripts/lib/extras.mjs` | build log `ext.svgLogos` |
 
 ## Forked into Blockchains and operated by the Pages build (v0.2)
 
@@ -39,7 +54,7 @@ Each fork is read at build time from `raw.githubusercontent.com/Blockchains/<for
 | [solana-program/token](https://github.com/solana-program/token) (`@solana-program/token`) | Apache-2.0 | dev dependency: our zero-dep Mint decoder is checked byte-for-byte against its codec | `test/unit.test.mjs` |
 | [anza-xyz/kit](https://github.com/anza-xyz/kit) (`@solana/kit`) | MIT | dev dependency (address/option codecs for that test) | same |
 | [grammyjs/grammY](https://github.com/grammyjs/grammY) | MIT | Telegram bot as a library: `examples/telegram-bot/bot.js` | `test/telegram.test.mjs` (real grammY update pipeline, API calls captured) |
-| [modelcontextprotocol/typescript-sdk](https://github.com/modelcontextprotocol/typescript-sdk) | MIT | MCP server `bin/memecoin-mcp.js` (8 tools) | `test/mcp.test.mjs` (stdio, live) |
+| [modelcontextprotocol/typescript-sdk](https://github.com/modelcontextprotocol/typescript-sdk) | MIT | MCP server `bin/memecoin-mcp.js` (12 tools) | `test/mcp.test.mjs` (stdio, live) |
 | [Blockchains/rotki](https://github.com/Blockchains/rotki) (fork of rotki/rotki) | AGPL-3.0 | file-format integration only (no code copied): PnL exports rotki "generic trades" CSV | live contract test reads the fork's importer and asserts every column it reads is emitted |
 | [Blockchains/blockchainlab-api](https://github.com/Blockchains/blockchainlab-api) | MIT | `rpc-health` picks the Solana RPC | live test |
 | [Blockchains/onetouchswitch-bridge](https://github.com/Blockchains/onetouchswitch-bridge) | MIT | Chainlink GBP/USD for GBP portfolio values | live test |
@@ -55,8 +70,7 @@ Public APIs (not repos): DexScreener, GeckoTerminal, RugCheck, Jupiter lite API,
 | Birdeye public API | every endpoint needs an API key (returns 401 keyless) — excluded by the no-paid/no-key rule |
 | GMGN (scrapers) | ToS forbids scraping; no public API — excluded |
 | CoinMarketCap API | key required — excluded |
-| MetaMask/eth-phishing-detect | non-OSI licence (NOASSERTION) — used Polkadot's Apache-2.0 list instead |
-| scamsniffer/scam-database, Uniswap/default-token-list, DefiLlama/chainlist | GPL-3.0; data not needed beyond the lists above |
+| DefiLlama/chainlist | not needed: chain RPCs come from Blockchains/blockchainlab-api |
 | jup-ag/token-list | archived, no licence; Jupiter tokens API is used via HTTP instead |
 | 0xJ1nn/dexscreener-python, DaniPopes/dexscreener (Rust) | MIT but wrong runtime; our zero-dep JS client covers the same endpoints |
 | honeypot "checkers" bundled with snipers (e.g. Eclectic-Token-Sniper) | unlicensed and/or sniper/drainer code — rejected |
@@ -73,3 +87,14 @@ Public APIs (not repos): DexScreener, GeckoTerminal, RugCheck, Jupiter lite API,
 - Honeypot evidence no longer depends on a single third-party API: honeypot.is + GoPlus + our own on-chain simulation.
 - Token links are phishing-checked before we show them.
 - Logos/socials survive when DexScreener has no profile (Trust Wallet + Solana registry forks).
+
+## Rejected in the v0.3 search (2026-10-13)
+
+| Candidate | Why not |
+|---|---|
+| pump.fun frontend API (`frontend-api-v3.pump.fun`) and scrapers of it | returns 403 to non-browser clients; scraping it would break ToS — we decode the chain with the official IDL instead |
+| pump.fun / Raydium "sniper", "bundler", "volume bot" and copy-trade repos | trade automation that front-runs or manipulates launches — excluded by policy |
+| Bubblemaps, Birdeye, Helius DAS, Moralis, Bitquery, Solscan Pro | API key or paid plan required |
+| Meteora DLMM/DAMM public APIs | endpoints returned empty data keyless during testing; Meteora pools already reach us through DexScreener |
+| rugcheck.xyz SDKs | no maintained public repo; the keyless RugCheck API is already used directly |
+| jup-ag/token-list, spothq/cryptocurrency-icons | archived / unmaintained |

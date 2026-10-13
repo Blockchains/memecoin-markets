@@ -3,7 +3,7 @@
   "schema_version": "1.0",
   "name": "memecoin-markets",
   "repo": "Blockchains/memecoin-markets",
-  "summary": "CoinMarketCap-style memecoin rankings + per-token SEO pages (holders, LP, charts, rug/honeypot scan) for memecoin.markets, plus safety scanner, new-pair radar, UK CGT/FIFO PnL, launch checklist, portfolio. Zero-dep SDK, MCP, static JSON API, Pages app. Free public data, no keys.",
+  "summary": "CoinMarketCap-style memecoin rankings + per-token SEO pages (holders, LP, charts, rug/honeypot scan) for memecoin.markets, plus safety scanner, new-pair radar, UK CGT/FIFO PnL, launch checklist, portfolio; v0.3 adds pump.fun bonding curves (official IDL), Raydium pools + LP burn, Jupiter sell depth, EVM token-list coverage, ScamSniffer/MetaMask scam lists and SVG logos from 8 Blockchains forks. Zero-dep SDK, MCP, static JSON API, Pages app. Free public data, no keys.",
   "kind": [
     "library",
     "mcp-server",
@@ -12,7 +12,7 @@
     "web-app"
   ],
   "stability": "beta",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "license": "MIT",
   "homepage": "https://blockchains.github.io/memecoin-markets/",
   "entrypoints": [
@@ -32,7 +32,10 @@
         "evaluateChecklist",
         "valuePortfolio",
         "walletHoldings",
-        "POLICY"
+        "POLICY",
+        "pumpfun",
+        "raydium",
+        "lists"
       ]
     },
     {
@@ -54,7 +57,11 @@
         "memecoin_uk_cgt",
         "memecoin_fifo_pnl",
         "memecoin_rotki_csv",
-        "memecoin_portfolio"
+        "memecoin_portfolio",
+        "memecoin_pumpfun_curve",
+        "memecoin_raydium_pools",
+        "memecoin_sell_impact",
+        "memecoin_token_lists"
       ]
     },
     {
@@ -81,6 +88,36 @@
       "type": "http",
       "name": "policy",
       "ref": "https://blockchains.github.io/memecoin-markets/v1/policy.json"
+    },
+    {
+      "type": "http",
+      "name": "pumpfun",
+      "ref": "https://blockchains.github.io/memecoin-markets/v1/pumpfun.json"
+    },
+    {
+      "type": "http",
+      "name": "sell-depth",
+      "ref": "https://blockchains.github.io/memecoin-markets/v1/sell-depth.json"
+    },
+    {
+      "type": "http",
+      "name": "token-lists",
+      "ref": "https://blockchains.github.io/memecoin-markets/v1/token-lists.json"
+    },
+    {
+      "type": "web",
+      "name": "pumpfun page",
+      "ref": "https://blockchains.github.io/memecoin-markets/pumpfun/"
+    },
+    {
+      "type": "web",
+      "name": "sell-depth page",
+      "ref": "https://blockchains.github.io/memecoin-markets/sell-depth/"
+    },
+    {
+      "type": "web",
+      "name": "token-lists page",
+      "ref": "https://blockchains.github.io/memecoin-markets/token-lists/"
     },
     {
       "type": "web",
@@ -126,10 +163,48 @@
       "name": "cgt",
       "type": "object",
       "description": "UK disposals (same-day, 30-day, s104) and tax-year totals"
+    },
+    {
+      "name": "pumpfun",
+      "type": "object",
+      "description": "bonding-curve progress, SOL raised, graduated flag per mint (on-chain, pump.fun IDL)"
+    },
+    {
+      "name": "sellImpact",
+      "type": "object",
+      "description": "% lost selling $1K/$10K into USDC (Jupiter quotes)"
+    },
+    {
+      "name": "raydium",
+      "type": "object",
+      "description": "Raydium pools, TVL, LP burn %"
+    },
+    {
+      "name": "tokenLists",
+      "type": "array",
+      "description": "token lists that include an EVM token"
+    },
+    {
+      "name": "scamCheck",
+      "type": "object",
+      "description": "ScamSniffer/MetaMask address + domain hits"
     }
   ],
   "deps": [
-    "node>=20 (or any modern browser)"
+    "node>=20 (or any modern browser)",
+    "github:Blockchains/pump-public-docs",
+    "github:Blockchains/raydium-sdk-V2",
+    "github:Blockchains/jupiter-quote-api-node",
+    "github:Blockchains/tokenLists",
+    "github:Blockchains/default-token-list",
+    "github:Blockchains/scam-database",
+    "github:Blockchains/eth-phishing-detect",
+    "github:Blockchains/web3icons",
+    "github:Blockchains/web3-defi-honeypot-and-slippage-checker",
+    "github:Blockchains/phishing",
+    "github:Blockchains/assets",
+    "github:Blockchains/token-list",
+    "github:Blockchains/rotki"
   ],
   "compatible_with": [
     {

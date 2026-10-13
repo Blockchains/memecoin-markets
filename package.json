@@ -1,6 +1,6 @@
 {
   "name": "memecoin-markets",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Free CoinMarketCap-style memecoin tracker for memecoin.markets: rankings (market cap, volume, liquidity, gainers, losers, trending, new pairs), SEO token pages with holders, LP, charts and rug/honeypot scans, guides; plus the safety scanner, radar, UK CGT PnL, SDK, MCP and static JSON API. Free public data only, no API keys.",
   "type": "module",
   "main": "./src/index.js",
@@ -28,7 +28,7 @@
   },
   "scripts": {
     "build:site": "node scripts/build-site.mjs",
-    "test:unit": "node --test test/unit.test.mjs test/telegram.test.mjs test/markets.test.mjs",
+    "test:unit": "node --test test/unit.test.mjs test/telegram.test.mjs test/markets.test.mjs test/repos.test.mjs",
     "test:live": "node --test --test-concurrency=1 test/live.test.mjs test/mcp.test.mjs",
     "test:e2e": "node --test test/e2e.test.mjs",
     "test": "npm run test:unit && npm run test:live"

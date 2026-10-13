@@ -1,5 +1,6 @@
 // Per-token page: /token/{chain}/{address}/ (or /coin/{coingecko-id}/ for native coins without a contract).
 import { swapCta } from './swap.mjs';
+import { extCard } from './ext-pages.mjs';
 import { layout, table, logo, tokenLabel, crumbsLd, esc, price, usd, usdFull, pct, num, date, dateLong, age, spark, chainName, EXPLORER, short } from './render.mjs';
 import { MEME_CATEGORIES } from '../../src/sources/coingecko.js';
 const CAT = Object.fromEntries(MEME_CATEGORIES);
@@ -82,6 +83,7 @@ ${t.address ? safety(t, scan) + `<p><button id="live-scan" data-chain="${esc(t.c
 ${h ? `<p>${num(h.count)} holders <span class="muted small">(GeckoTerminal, ${esc(date(h.updated))})</span></p><div class="dist">${dist}</div>` : '<p class="muted">Holder data loads live from GeckoTerminal when available.</p>'}
 ${t.gt?.mintAuthority ? `<p class="small">Mint authority: <b>${esc(t.gt.mintAuthority)}</b> · Freeze authority: <b>${esc(t.gt.freezeAuthority)}</b>${t.gt.devPct != null ? ` · Dev holds ${esc(t.gt.devPct)}%` : ''} <span class="muted">(GeckoTerminal)</span></p>` : ''}
 <div id="holders-live"></div></section>
+${extCard(t, R)}
 <section id="pools"><h2>Where ${esc(sym)} trades — liquidity pools</h2>${pools}</section>
 <section><h2>${esc(sym)} and UK tax</h2><p>In the UK each memecoin is a separate asset with its own Section 104 pool. Selling ${esc(sym)} for SOL, ETH, a stablecoin or pounds is a disposal for Capital Gains Tax, and the same-day and 30-day rules apply before pooling. Read the <a href="${R}guides/uk-memecoin-tax/">UK memecoin tax guide</a> or calculate gains in the free <a href="${R}tools/#pnl">PnL / UK CGT tool</a>.</p></section>
 ${faq.length ? `<section id="faq"><h2>${esc(sym)} FAQ</h2>${faq.map(([q, a]) => `<h3>${esc(q)}</h3><p>${esc(a)}</p>`).join('')}</section>` : ''}

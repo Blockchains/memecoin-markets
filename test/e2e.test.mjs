@@ -89,6 +89,24 @@ test('toolkit: EVM honeypot checklist (PEPE) + radar snapshot', async () => {
   await page.close();
 });
 
+test('v0.3 repo-fork features: pump.fun board, sell depth, token lists, token-page depth card, JSON', async () => {
+  const page = await browser.newPage();
+  let r = await page.goto(`${base}pumpfun/`); assert.equal(r.status(), 200);
+  assert.ok((await page.$$('#pf-curve tbody tr')).length >= 5, 'bonding-curve rows');
+  assert.match(await page.textContent('#pf-curve'), /\d+\.\d%|Graduated/);
+  r = await page.goto(`${base}sell-depth/`); assert.equal(r.status(), 200);
+  assert.ok((await page.$$('#sell-depth tbody tr')).length >= 5, 'sell-depth rows');
+  r = await page.goto(`${base}token-lists/`); assert.equal(r.status(), 200);
+  assert.ok((await page.$$('#token-lists tbody tr')).length >= 50, 'token-list rows');
+  await page.goto(`${base}token/solana/DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263/`, { waitUntil: 'domcontentloaded' });
+  assert.match(await page.textContent('#depth'), /Raydium pools/);
+  const j = await (await page.request.get(`${base}v1/token/solana/DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263.json`)).json();
+  assert.ok(j.token.raydium?.count > 0, 'raydium in token json');
+  const pf = await (await page.request.get(`${base}v1/pumpfun.json`)).json();
+  assert.ok(pf.curve.some((x) => x.curve && typeof x.curve.progressPct === 'number'), 'decoded curves');
+  await page.close();
+});
+
 test('offline core: rankings, a visited token page, watchlist and UK tax calculator work offline', async () => {
   const ctx = await browser.newContext(); const page = await ctx.newPage();
   await page.goto(base);
