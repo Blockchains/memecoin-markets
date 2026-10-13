@@ -3,7 +3,7 @@
   "schema_version": "1.0",
   "name": "memecoin-markets",
   "repo": "Blockchains/memecoin-markets",
-  "summary": "CoinMarketCap-style memecoin rankings + per-token SEO pages (holders, LP, charts, rug/honeypot scan) for memecoin.markets, plus safety scanner, new-pair radar, UK CGT/FIFO PnL, launch checklist, portfolio; v0.3 adds pump.fun bonding curves (official IDL), Raydium pools + LP burn, Jupiter sell depth, EVM token-list coverage, ScamSniffer/MetaMask scam lists and SVG logos from 8 Blockchains forks. Zero-dep SDK, MCP, static JSON API, Pages app. Free public data, no keys.",
+  "summary": "CoinMarketCap-style memecoin rankings + SEO token pages (holders, LP, charts, rug/honeypot scan), pump.fun bonding curves, Raydium LP burn, Jupiter sell depth, token-list and scam-list checks for memecoin.markets; scanner, radar, UK CGT PnL. Zero-dep SDK, MCP, static JSON API, Pages app. Free public data, no keys.",
   "kind": [
     "library",
     "mcp-server",
